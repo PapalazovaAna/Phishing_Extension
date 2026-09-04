@@ -1,0 +1,52 @@
+body {
+  width: 340px;
+  margin: 0;
+  font-family: Arial, sans-serif;
+  color: #1f2937;
+}
+
+.container {
+  padding: 16px;
+}
+
+h1 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.url {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+button {
+  width: 100%;
+  padding: 9px;
+  border: 0;
+  border-radius: 6px;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.result {
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  font-size: 13px;
+}
+
+.result ul {
+  padding-left: 18px;
+}
+
+.hidden {
+  display: none;
+}

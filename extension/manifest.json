@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Phishing Risk Detector",
+  "version": "0.1.0",
+  "description": "Analyzes the current webpage URL for basic phishing indicators.",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content-script.js"
+      ]
+    }
+  ],
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "icons": {}
+}
