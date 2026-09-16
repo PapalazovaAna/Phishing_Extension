@@ -16,12 +16,12 @@ function analyzeDom() {
     );
   }
 
-  if (forms.length > 0) {
-    score += 5;
-    indicators.push(
-      "The page contains " + forms.length + " form(s)."
-    );
-  }
+  // if (forms.length > 0) {
+  //   score += 5;
+  //   indicators.push(
+  //     "The page contains " + forms.length + " form(s)."
+  //   );
+  // }
 
   const currentOrigin = window.location.origin;
 
@@ -48,12 +48,12 @@ function analyzeDom() {
     );
   }
 
-  if (iframes.length > 0) {
-    score += 10;
-    indicators.push(
-      "The page contains " + iframes.length + " iframe(s)."
-    );
-  }
+  // if (iframes.length > 0) {
+  //   score += 10;
+  //   indicators.push(
+  //     "The page contains " + iframes.length + " iframe(s)."
+  //   );
+  // }
 
   const visibleText = document.body
     ? document.body.innerText.toLowerCase()
@@ -61,8 +61,7 @@ function analyzeDom() {
 
   const suspiciousWords = [
     "verify your account",
-    "confirm your password",
-    "sign in"
+    "confirm your password"
   ];
 
   const foundWord = suspiciousWords.find(function (word) {
