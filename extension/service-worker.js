@@ -143,9 +143,7 @@ chrome.runtime.onMessage.addListener(
           sendResponse(result);
         } catch (error) {
           sendResponse({
-            score: Math.round(
-              urlData.score * 0.6 + domData.score * 0.4
-            ),
+            score: null,
             classification: "Unavailable",
             indicators: [
               ...urlData.indicators.map(
@@ -155,7 +153,13 @@ chrome.runtime.onMessage.addListener(
               ...domData.indicators.map(
                 (item) => "DOM: " + item
               )
-            ]
+            ],
+            components: {
+              url_score: urlData.score,
+              ml_score: null,
+              dom_score: domData.score,
+              reputation_score: null
+            }
           });
         }
       }

@@ -108,7 +108,7 @@ def analyze(request: AnalyzeRequest) -> dict[str, Any]:
 
         final_score = max(final_score, 85)
 
-    elif reputation_status == "trusted":
+    elif reputation_status in {"trusted", "popular"}:
         final_score = (
             url_score * 0.25
             + ml_score * 0.10

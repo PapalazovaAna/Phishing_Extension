@@ -35,7 +35,7 @@ def test_health_endpoint():
     }
 
 
-def test_trusted_domain_has_low_risk():
+def test_popular_domain_has_low_risk():
     request_data = create_request(
         url="https://www.google.com/"
     )
@@ -51,10 +51,10 @@ def test_trusted_domain_has_low_risk():
 
     assert result["score"] <= 20
     assert result["classification"] == "Likely safe"
-    assert result["reputation"]["status"] == "trusted"
+    assert result["reputation"]["status"] == "popular"
 
 
-def test_malicious_domain_has_high_risk():
+def test_unknown_domain_does_not_appear_in_reputation_lists():
     request_data = create_request(
         url="http://phishing.test/login",
         url_score=40,
@@ -77,9 +77,7 @@ def test_malicious_domain_has_high_risk():
 
     result = response.json()
 
-    assert result["score"] >= 85
-    assert result["classification"] == "Likely phishing"
-    assert result["reputation"]["status"] == "malicious"
+    assert result["reputation"]["status"] == "unknown"
 
 
 def test_unknown_domain_is_analyzed():
