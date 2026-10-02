@@ -1,73 +1,109 @@
 from pathlib import Path
+from typing import Any
 
-import joblib
-import pandas as pd
-
-from .features import extract_url_features
-
-
-MODEL_PATH = Path(__file__).parent / "url_model.joblib"
-
-_model = None
-_feature_names = None
+import torch
+from transformers import (
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+)
 
 
-def load_model():
-    global _model, _feature_names
-
-    if _model is not None:
-        return
-
-    artifact = joblib.load(MODEL_PATH)
-
-    if isinstance(artifact, dict):
-        _model = artifact["model"]
-        _feature_names = artifact["feature_names"]
-    else:
-        _model = artifact
-        _feature_names = None
+MODEL_DIRECTORY = (
+    Path(__file__).parent
+    / "models"
+    / "urlbert-tiny-v4-phishing-classifier"
+)
 
 
-def predict_url(url: str) -> dict:
-    load_model()
+tokenizer = AutoTokenizer.from_pretrained(
+    str(MODEL_DIRECTORY),
+    local_files_only=True,
+)
 
-    extracted_features = extract_url_features(url)
+model = AutoModelForSequenceClassification.from_pretrained(
+    str(MODEL_DIRECTORY),
+    local_files_only=True,
+)
 
-    if _feature_names:
-        row = {
-            feature_name: extracted_features.get(feature_name, 0)
-            for feature_name in _feature_names
-        }
+model.eval()
 
-        features_df = pd.DataFrame(
-            [row],
-            columns=_feature_names
-        )
-    else:
-        features_df = pd.DataFrame([extracted_features])
 
-    probabilities = _model.predict_proba(features_df)[0]
+def classify_probability(
+    probability: float,
+) -> str:
+    if probability >= 0.70:
+        return "Likely phishing"
 
-    classes = list(_model.classes_)
-    phishing_index = classes.index(1)
+    if probability >= 0.40:
+        return "Suspicious"
 
-    phishing_probability = float(probabilities[phishing_index])
-    score = round(phishing_probability * 100)
+    return "Likely safe"
 
-    if score >= 70:
-        classification = "Likely phishing"
-    elif score >= 40:
-        classification = "Suspicious"
-    else:
-        classification = "Likely safe"
+
+def predict_url(url: str) -> dict[str, Any]:
+    probability = predict_probability(url)
+
+    probability = round(
+        probability,
+        4,
+    )
+
+    score = round(
+        probability * 100
+    )
+
+    classification = classify_probability(
+        probability
+    )
 
     indicator = (
-        f"ML model estimates a {score}% phishing probability."
+        "ML model estimates a "
+        f"{score}% phishing probability."
     )
 
     return {
         "score": score,
         "classification": classification,
-        "probability": round(phishing_probability, 4),
+        "probability": probability,
         "indicator": indicator,
     }
+
+def predict_probability(url: str) -> float:
+    max_length = int(
+        model.config.max_position_embeddings
+    )
+
+    encoded = tokenizer(
+        url,
+        truncation=True,
+        max_length=max_length,
+        stride=16,
+        padding=True,
+        return_overflowing_tokens=True,
+        return_tensors="pt",
+    )
+
+    model_inputs = {
+        key: value
+        for key, value in encoded.items()
+        if key in {
+            "input_ids",
+            "attention_mask",
+            "token_type_ids",
+        }
+    }
+
+    with torch.no_grad():
+        outputs = model(**model_inputs)
+
+    probabilities = torch.softmax(
+        outputs.logits,
+        dim=1,
+    )
+
+    chunk_probabilities = probabilities[:, 1]
+
+    # The most suspicious chunk determines the ML score.
+    return float(
+        chunk_probabilities.max()
+    )

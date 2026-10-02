@@ -6,3 +6,6 @@ joblib
 pytest
 httpx
 tldextract
+torch
+transformers
+huggingface_hub

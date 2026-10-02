@@ -72,6 +72,25 @@ def combine_indicators(
     return indicators
 
 
+def count_strong_signals(
+    url_score: int,
+    ml_score: int,
+    dom_score: int,
+    reputation_status: str | None,
+) -> int:
+    strong_signals = [
+        url_score >= 20,
+        ml_score >= 70,
+        dom_score >= 10,
+        reputation_status in {
+            "malicious",
+            "suspicious",
+        },
+    ]
+
+    return sum(strong_signals)
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {
@@ -98,15 +117,28 @@ def analyze(request: AnalyzeRequest) -> dict[str, Any]:
 
     has_strong_url_indicator = url_score >= 60
 
+    if reputation_score is None:
+        reputation_score = 0
+
     if reputation_status == "malicious":
         final_score = (
             url_score * 0.25
             + ml_score * 0.35
-            + dom_score * 0.20
-            + reputation_score * 0.20
+            + dom_score * 0.15
+            + reputation_score * 0.25
         )
 
         final_score = max(final_score, 85)
+
+    elif reputation_status == "suspicious":
+        final_score = (
+            url_score * 0.20
+            + ml_score * 0.25
+            + dom_score * 0.10
+            + reputation_score * 0.45
+        )
+
+        final_score = max(final_score, 50)
 
     elif reputation_status in {"trusted", "popular"}:
         final_score = (
@@ -115,7 +147,10 @@ def analyze(request: AnalyzeRequest) -> dict[str, Any]:
             + dom_score * 0.15
         )
 
-        if not has_strong_url_indicator and not has_strong_dom_indicator:
+        if (
+            url_score < 40
+            and dom_score < 40
+        ):
             final_score = min(final_score, 20)
 
     else:
@@ -128,6 +163,16 @@ def analyze(request: AnalyzeRequest) -> dict[str, Any]:
     final_score = round(
         min(max(final_score, 0), 100)
     )
+
+    strong_signal_count = count_strong_signals(
+        url_score=url_score,
+        ml_score=ml_score,
+        dom_score=dom_score,
+        reputation_status=reputation_status,
+    )
+
+    if strong_signal_count >= 3:
+        final_score = max(final_score, 70)
 
     if (
         reputation_status == "trusted"
