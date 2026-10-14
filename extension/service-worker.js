@@ -140,57 +140,9 @@ async function analyzeWithBackend(url, domData) {
 
 
 function shouldBlockAutomatically(result) {
-  if (
-    !result ||
-    result.classification === "Unavailable"
-  ) {
-    return false;
-  }
-
-  const components = result.components || {};
-  const reputation = result.reputation || {};
-
-  const finalScore =
-    typeof result.score === "number"
-      ? result.score
-      : 0;
-
-  const urlScore =
-    typeof components.url_score === "number"
-      ? components.url_score
-      : 0;
-
-  const mlScore =
-    typeof components.ml_score === "number"
-      ? components.ml_score
-      : 0;
-
-  const reputationStatus =
-    reputation.status;
-
-  if (reputationStatus === "malicious") {
-    return true;
-  }
-
-  if (finalScore >= 70) {
-    return true;
-  }
-
-  if (mlScore >= 90 && urlScore >= 20) {
-    return true;
-  }
-
-  if (
-    reputationStatus === "suspicious" &&
-    (
-      mlScore >= 70 ||
-      urlScore >= 20
-    )
-  ) {
-    return true;
-  }
-
-  return false;
+  // The backend decides whether a page is blocked,
+  // see should_block in backend/app/scoring.py.
+  return Boolean(result && result.block === true);
 }
 
 

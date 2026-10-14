@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI
@@ -5,12 +6,30 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from app.ml.predictor import predict_url
-from app.reputation import check_reputation
+from app.reputation import (
+    check_reputation,
+    load_reputation_data,
+)
+from app.scoring import (
+    SUSPICIOUS_THRESHOLD,
+    classify_score,
+    combine_scores,
+    should_block,
+)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load the reputation lists and typosquatting index at startup
+    # instead of during the first request.
+    load_reputation_data()
+    yield
 
 
 app = FastAPI(
     title="Phishing Detection API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 
@@ -32,16 +51,6 @@ class AnalyzeRequest(BaseModel):
     url: str
     url_analysis: AnalysisPart
     dom: AnalysisPart
-
-
-def classify_score(score: int) -> str:
-    if score >= 70:
-        return "Likely phishing"
-
-    if score >= 40:
-        return "Suspicious"
-
-    return "Likely safe"
 
 
 def combine_indicators(
@@ -72,23 +81,23 @@ def combine_indicators(
     return indicators
 
 
-def count_strong_signals(
-    url_score: int,
-    ml_score: int,
-    dom_score: int,
-    reputation_status: str | None,
-) -> int:
-    strong_signals = [
-        url_score >= 20,
-        ml_score >= 70,
-        dom_score >= 10,
-        reputation_status in {
-            "malicious",
-            "suspicious",
-        },
-    ]
+def create_ml_indicator(
+    ml_result: dict[str, Any],
+    reputation_status: str,
+    final_score: int,
+) -> str:
+    if (
+        reputation_status == "popular"
+        and ml_result["score"] >= SUSPICIOUS_THRESHOLD
+        and final_score < SUSPICIOUS_THRESHOLD
+    ):
+        return (
+            "The URL model detected a suspicious pattern "
+            f"({ml_result['score']}%), but the domain is "
+            "in the Tranco popular domain list."
+        )
 
-    return sum(strong_signals)
+    return ml_result["indicator"]
 
 
 @app.get("/health")
@@ -106,88 +115,24 @@ def analyze(request: AnalyzeRequest) -> dict[str, Any]:
     url_score = request.url_analysis.score
     ml_score = ml_result["score"]
     dom_score = request.dom.score
-    reputation_score = reputation_result.get("score")
-    reputation_status = reputation_result.get("status")
+    reputation_status = reputation_result["status"]
+    reputation_score = reputation_result["score"] or 0
 
-    has_strong_dom_indicator = any(
-        "another origin" in indicator.lower()
-        or "password" in indicator.lower()
-        for indicator in request.dom.indicators
-    )
-
-    has_strong_url_indicator = url_score >= 60
-
-    if reputation_score is None:
-        reputation_score = 0
-
-    if reputation_status == "malicious":
-        final_score = (
-            url_score * 0.25
-            + ml_score * 0.35
-            + dom_score * 0.15
-            + reputation_score * 0.25
-        )
-
-        final_score = max(final_score, 85)
-
-    elif reputation_status == "suspicious":
-        final_score = (
-            url_score * 0.20
-            + ml_score * 0.25
-            + dom_score * 0.10
-            + reputation_score * 0.45
-        )
-
-        final_score = max(final_score, 50)
-
-    elif reputation_status in {"trusted", "popular"}:
-        final_score = (
-            url_score * 0.25
-            + ml_score * 0.10
-            + dom_score * 0.15
-        )
-
-        if (
-            url_score < 40
-            and dom_score < 40
-        ):
-            final_score = min(final_score, 20)
-
-    else:
-        final_score = (
-            url_score * 0.35
-            + ml_score * 0.45
-            + dom_score * 0.20
-        )
-
-    final_score = round(
-        min(max(final_score, 0), 100)
-    )
-
-    strong_signal_count = count_strong_signals(
+    final_score = combine_scores(
         url_score=url_score,
         ml_score=ml_score,
         dom_score=dom_score,
         reputation_status=reputation_status,
+        reputation_score=reputation_score,
     )
-
-    if strong_signal_count >= 3:
-        final_score = max(final_score, 70)
-
-    if (
-        reputation_status == "trusted"
-        and final_score < 40
-    ):
-        ml_indicator = (
-            "The URL model detected a suspicious pattern, "
-            "but the domain is trusted."
-        )
-    else:
-        ml_indicator = ml_result["indicator"]
 
     indicators = combine_indicators(
         url_indicators=request.url_analysis.indicators,
-        ml_indicator=ml_indicator,
+        ml_indicator=create_ml_indicator(
+            ml_result,
+            reputation_status,
+            final_score,
+        ),
         dom_indicators=request.dom.indicators,
         reputation_indicator=reputation_result.get("indicator"),
     )
@@ -195,6 +140,12 @@ def analyze(request: AnalyzeRequest) -> dict[str, Any]:
     return {
         "score": final_score,
         "classification": classify_score(final_score),
+        "block": should_block(
+            final_score=final_score,
+            url_score=url_score,
+            ml_score=ml_score,
+            reputation_status=reputation_status,
+        ),
         "indicators": indicators,
         "components": {
             "url_score": url_score,
