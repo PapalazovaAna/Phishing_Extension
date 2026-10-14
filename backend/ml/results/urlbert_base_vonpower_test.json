@@ -1,0 +1,116 @@
+{
+  "model": "CrabInHoney/urlbert-tiny-v4-phishing-classifier",
+  "dataset": "vonDataset20180426.dill",
+  "split": "test",
+  "max_per_class": 0,
+  "urls_seen_in_train": 11238,
+  "urls_probably_truncated": 14826,
+  "all": {
+    "count": 155937,
+    "legitimate": 80162,
+    "phishing": 75775,
+    "roc_auc": 0.9713,
+    "thresholds": {
+      "0.50": {
+        "accuracy": 0.8777,
+        "precision": 0.8153,
+        "recall": 0.9676,
+        "f1": 0.8849,
+        "false_positive_rate": 0.2072,
+        "confusion_matrix": {
+          "tn": 63550,
+          "fp": 16612,
+          "fn": 2456,
+          "tp": 73319
+        }
+      },
+      "0.70": {
+        "accuracy": 0.8983,
+        "precision": 0.8512,
+        "recall": 0.9582,
+        "f1": 0.9016,
+        "false_positive_rate": 0.1583,
+        "confusion_matrix": {
+          "tn": 67471,
+          "fp": 12691,
+          "fn": 3164,
+          "tp": 72611
+        }
+      }
+    },
+    "predictor_tiers": {
+      "legitimate": {
+        "Likely safe": 61969,
+        "Suspicious": 5502,
+        "Likely phishing": 12691
+      },
+      "phishing": {
+        "Likely safe": 2168,
+        "Suspicious": 996,
+        "Likely phishing": 72611
+      }
+    }
+  },
+  "unseen_in_train": {
+    "count": 144699,
+    "legitimate": 75671,
+    "phishing": 69028,
+    "roc_auc": 0.9702,
+    "thresholds": {
+      "0.50": {
+        "accuracy": 0.8753,
+        "precision": 0.8093,
+        "recall": 0.9663,
+        "f1": 0.8809,
+        "false_positive_rate": 0.2077,
+        "confusion_matrix": {
+          "tn": 59955,
+          "fp": 15716,
+          "fn": 2326,
+          "tp": 66702
+        }
+      },
+      "0.70": {
+        "accuracy": 0.8963,
+        "precision": 0.846,
+        "recall": 0.9567,
+        "f1": 0.8979,
+        "false_positive_rate": 0.1589,
+        "confusion_matrix": {
+          "tn": 63650,
+          "fp": 12021,
+          "fn": 2991,
+          "tp": 66037
+        }
+      }
+    },
+    "predictor_tiers": {
+      "legitimate": {
+        "Likely safe": 58516,
+        "Suspicious": 5134,
+        "Likely phishing": 12021
+      },
+      "phishing": {
+        "Likely safe": 2043,
+        "Suspicious": 948,
+        "Likely phishing": 66037
+      }
+    }
+  },
+  "scheme_robustness": {
+    "phishing_http_to_https": {
+      "count": 73800,
+      "mean_probability_original": 0.9631,
+      "mean_probability_swapped": 0.9382,
+      "flagged_at_0.50_original": 0.968,
+      "flagged_at_0.50_swapped": 0.9447
+    },
+    "legitimate_https_to_http": {
+      "count": 29498,
+      "mean_probability_original": 0.1975,
+      "mean_probability_swapped": 0.2183,
+      "flagged_at_0.50_original": 0.1972,
+      "flagged_at_0.50_swapped": 0.2185
+    }
+  }
+}

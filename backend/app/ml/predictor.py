@@ -31,6 +31,10 @@ model.to("cpu")
 
 CHUNK_OVERLAP = 16
 
+MAX_LENGTH = int(
+    model.config.max_position_embeddings
+)
+
 
 def classify_probability(
     probability: float,
@@ -44,14 +48,16 @@ def classify_probability(
     return "Likely safe"
 
 
-def create_url_chunks(url: str):
-    max_length = int(
-        model.config.max_position_embeddings
-    )
+def create_url_chunks(
+    url: str,
+    url_tokenizer=tokenizer,
+    max_length: int = MAX_LENGTH,
+):
+    # The tokenizer and length are parameters so the evaluation
+    # scripts can reuse the exact same chunking with other models.
+    tokens = url_tokenizer.tokenize(url)
 
-    tokens = tokenizer.tokenize(url)
-
-    token_ids = tokenizer.convert_tokens_to_ids(
+    token_ids = url_tokenizer.convert_tokens_to_ids(
         tokens
     )
 
@@ -85,9 +91,9 @@ def create_url_chunks(url: str):
 
     for chunk in chunks:
         ids = [
-            tokenizer.cls_token_id,
+            url_tokenizer.cls_token_id,
             *chunk,
-            tokenizer.sep_token_id,
+            url_tokenizer.sep_token_id,
         ]
 
         mask = [1] * len(ids)
@@ -95,7 +101,7 @@ def create_url_chunks(url: str):
         padding_length = max_length - len(ids)
 
         ids.extend(
-            [tokenizer.pad_token_id or 0]
+            [url_tokenizer.pad_token_id or 0]
             * padding_length
         )
 

@@ -1,368 +1,582 @@
+"""Evaluate the URLBERT model on the held-out vonpower test split.
+
+By default this evaluates the deployed model through the same
+chunking and logit aggregation used by app/ml/predictor.py.
+Pass --model base to evaluate the original pre-trained
+CrabInHoney model for comparison.
+
+Run from the backend directory:
+
+    python -m ml.evaluate_urlbert_vonpower
+    python -m ml.evaluate_urlbert_vonpower --model base
+"""
+
 from pathlib import Path
+import argparse
 import csv
+import json
+import time
 
 import dill
 import numpy as np
 import torch
 from sklearn.metrics import (
     accuracy_score,
-    classification_report,
     confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
 )
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
 )
 
+from app.ml import predictor
 
-MODEL_NAME = (
+
+BASE_MODEL_NAME = (
     "CrabInHoney/"
     "urlbert-tiny-v4-phishing-classifier"
 )
 
+BASE_DIR = Path(__file__).resolve().parents[1]
+
 DATASET_PATH = (
-    Path(__file__).resolve().parents[1]
+    BASE_DIR
     / "app"
     / "ml"
     / "data"
     / "vonDataset20180426.dill"
 )
 
-OUTPUT_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "ml"
-    / "urlbert_vonpower_predictions.csv"
-)
+RESULTS_DIR = BASE_DIR / "ml" / "results"
 
-MAX_PER_CLASS = 10_000
-BATCH_SIZE = 64
-CHUNK_OVERLAP = 16
+# 0.50 is the standard decision threshold, 0.70 is the
+# "Likely phishing" threshold used by the predictor.
+THRESHOLDS = [0.50, 0.70]
+
+# URLs in the dataset are stored with a fixed width of 150
+# characters, so URLs of this length are probably truncated.
+DATASET_URL_WIDTH = 150
+
 RANDOM_SEED = 42
 
 
-def labels_to_1d(labels):
-    return np.asarray(labels).reshape(-1)
-
-
 def decode_urls(encoded_urls, char_to_int):
-    reverse_mapping = {
-        int(value): str(key)
-        for key, value in char_to_int.items()
-    }
+    encoded_urls = np.asarray(encoded_urls)
 
-    decoded_urls = []
+    lookup = np.full(
+        max(int(value) for value in char_to_int.values()) + 1,
+        "",
+        dtype="<U1",
+    )
 
-    for row in encoded_urls:
-        characters = []
+    for character, value in char_to_int.items():
+        lookup[int(value)] = str(character)
 
-        for token in row:
-            token = int(token)
+    # Token 0 is padding.
+    lookup[0] = ""
 
-            if token == 0:
-                continue
+    characters = lookup[encoded_urls]
 
-            characters.append(
-                reverse_mapping.get(token, "")
-            )
+    rows = characters.view(
+        f"<U{encoded_urls.shape[1]}"
+    ).reshape(-1)
 
-        decoded_urls.append("".join(characters))
+    return [
+        row.replace("\x00", "")
+        for row in rows
+    ]
 
-    return decoded_urls
+
+def load_split(data, split):
+    urls = decode_urls(
+        data[f"{split}_x"],
+        data["char_to_int"],
+    )
+
+    labels = np.asarray(
+        data[f"{split}_y"]
+    ).reshape(-1)
+
+    return urls, labels
 
 
-def select_balanced_subset(urls, labels):
+def select_balanced_subset(urls, labels, max_per_class):
+    if not max_per_class:
+        return urls, labels
+
     rng = np.random.default_rng(RANDOM_SEED)
 
     selected_indices = []
 
     for label in [0, 1]:
-        label_indices = np.flatnonzero(
-            labels == label
-        )
-
-        sample_size = min(
-            MAX_PER_CLASS,
-            len(label_indices),
-        )
-
-        selected = rng.choice(
-            label_indices,
-            size=sample_size,
-            replace=False,
-        )
+        label_indices = np.flatnonzero(labels == label)
 
         selected_indices.extend(
-            selected.tolist()
+            rng.choice(
+                label_indices,
+                size=min(max_per_class, len(label_indices)),
+                replace=False,
+            ).tolist()
         )
 
-    rng.shuffle(selected_indices)
-
-    selected_indices = np.asarray(selected_indices)
-
-    selected_urls = [
-        urls[index]
-        for index in selected_indices
-    ]
-
-    selected_labels = labels[selected_indices]
-
-    return selected_urls, selected_labels
-
-
-def create_url_chunks(
-    url,
-    tokenizer,
-    model_max_length,
-):
-    token_ids = tokenizer.encode(
-        url,
-        add_special_tokens=False,
-        truncation=False,
-    )
-
-    content_length = model_max_length - 2
-
-    if len(token_ids) <= content_length:
-        chunks = [token_ids]
-    else:
-        step = content_length - CHUNK_OVERLAP
-        chunks = []
-
-        for start in range(
-            0,
-            len(token_ids),
-            step,
-        ):
-            chunk = token_ids[
-                start:start + content_length
-            ]
-
-            if chunk:
-                chunks.append(chunk)
-
-            if start + content_length >= len(token_ids):
-                break
-
-    input_ids = []
-    attention_masks = []
-
-    pad_token_id = tokenizer.pad_token_id
-
-    if pad_token_id is None:
-        pad_token_id = 0
-
-    cls_token_id = tokenizer.cls_token_id
-    sep_token_id = tokenizer.sep_token_id
-
-    for chunk in chunks:
-        ids = [
-            cls_token_id,
-            *chunk,
-            sep_token_id,
-        ]
-
-        mask = [1] * len(ids)
-
-        padding_length = (
-            model_max_length - len(ids)
-        )
-
-        ids.extend(
-            [pad_token_id] * padding_length
-        )
-
-        mask.extend(
-            [0] * padding_length
-        )
-
-        input_ids.append(ids)
-        attention_masks.append(mask)
+    selected_indices.sort()
 
     return (
-        torch.tensor(
-            input_ids,
-            dtype=torch.long,
-        ),
-        torch.tensor(
-            attention_masks,
-            dtype=torch.long,
-        ),
+        [urls[index] for index in selected_indices],
+        labels[selected_indices],
     )
 
 
-def predict_url_probability(
-    url,
-    model,
-    tokenizer,
-    model_max_length,
-):
-    input_ids, attention_masks = create_url_chunks(
-        url,
-        tokenizer,
-        model_max_length,
-    )
-
-    with torch.no_grad():
-        outputs = model(
-            input_ids=input_ids,
-            attention_mask=attention_masks,
+def load_model(model_choice):
+    if model_choice == "deployed":
+        return (
+            predictor.model,
+            predictor.tokenizer,
+            str(predictor.MODEL_DIRECTORY),
         )
 
-    # Mean logits across all URL chunks
-    mean_logits = outputs.logits.mean(dim=0)
-
-    probabilities = torch.softmax(
-        mean_logits,
-        dim=0,
-    )
-
-    return float(probabilities[1])
-
-
-def main():
-    print("Loading vonpower test set...")
-
-    with DATASET_PATH.open("rb") as file:
-        data = dill.load(file)
-
-    test_x = np.asarray(data["test_x"])
-    test_y = labels_to_1d(data["test_y"])
-    char_to_int = data["char_to_int"]
-
-    test_urls = decode_urls(
-        test_x,
-        char_to_int,
-    )
-
-    test_urls, test_labels = select_balanced_subset(
-        test_urls,
-        test_y,
-    )
-
-    print(
-        f"Evaluation records: {len(test_urls)}"
-    )
-    print(
-        f"Legitimate records: "
-        f"{np.sum(test_labels == 0)}"
-    )
-    print(
-        f"Phishing records: "
-        f"{np.sum(test_labels == 1)}"
-    )
-
-    print("\nLoading URLBERT...")
-
     tokenizer = AutoTokenizer.from_pretrained(
-        MODEL_NAME
+        BASE_MODEL_NAME
     )
 
-    model = (
-        AutoModelForSequenceClassification
-        .from_pretrained(MODEL_NAME)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        BASE_MODEL_NAME
     )
 
     model.eval()
 
-    model_max_length = int(
+    return model, tokenizer, BASE_MODEL_NAME
+
+
+def predict_probabilities(
+    urls,
+    model,
+    tokenizer,
+    batch_size,
+):
+    max_length = int(
         model.config.max_position_embeddings
     )
 
-    print(
-        f"Model maximum length: "
-        f"{model_max_length}"
-    )
+    probabilities = np.zeros(len(urls))
+    start_time = time.time()
 
-    predictions = []
-    probabilities = []
+    for start in range(0, len(urls), batch_size):
+        batch_urls = urls[start:start + batch_size]
 
-    for index, url in enumerate(test_urls):
-        probability = predict_url_probability(
-            url,
-            model,
-            tokenizer,
-            model_max_length,
+        chunked = [
+            predictor.create_url_chunks(
+                url,
+                url_tokenizer=tokenizer,
+                max_length=max_length,
+            )
+            for url in batch_urls
+        ]
+
+        chunk_counts = [
+            len(input_ids)
+            for input_ids, _ in chunked
+        ]
+
+        with torch.no_grad():
+            logits = model(
+                input_ids=torch.cat(
+                    [input_ids for input_ids, _ in chunked]
+                ),
+                attention_mask=torch.cat(
+                    [mask for _, mask in chunked]
+                ),
+            ).logits
+
+        # Mean logits across the chunks of each URL,
+        # the same aggregation as predictor.predict_probability.
+        url_logits = torch.stack(
+            [
+                chunk_logits.mean(dim=0)
+                for chunk_logits in torch.split(
+                    logits,
+                    chunk_counts,
+                )
+            ]
         )
 
-        probabilities.append(probability)
-        predictions.append(
-            int(probability >= 0.50)
+        probabilities[start:start + len(batch_urls)] = (
+            torch.softmax(url_logits, dim=1)[:, 1].numpy()
         )
 
-        if (index + 1) % 500 == 0:
+        processed = start + len(batch_urls)
+
+        if (
+            processed % (batch_size * 40) == 0
+            or processed == len(urls)
+        ):
+            elapsed = time.time() - start_time
+
             print(
-                f"Processed "
-                f"{index + 1}/{len(test_urls)}"
+                f"  {processed}/{len(urls)} URLs "
+                f"({processed / elapsed:.0f} URLs/s)"
             )
 
-    predictions = np.asarray(predictions)
-    probabilities = np.asarray(probabilities)
+    return probabilities
 
-    print("\nURLBERT ON VONPOWER")
+
+def compute_metrics(labels, probabilities):
+    metrics = {
+        "count": int(len(labels)),
+        "legitimate": int(np.sum(labels == 0)),
+        "phishing": int(np.sum(labels == 1)),
+        "roc_auc": round(
+            float(roc_auc_score(labels, probabilities)),
+            4,
+        ),
+        "thresholds": {},
+    }
+
+    for threshold in THRESHOLDS:
+        predictions = (
+            probabilities >= threshold
+        ).astype(int)
+
+        tn, fp, fn, tp = confusion_matrix(
+            labels,
+            predictions,
+            labels=[0, 1],
+        ).ravel()
+
+        metrics["thresholds"][f"{threshold:.2f}"] = {
+            "accuracy": round(
+                float(accuracy_score(labels, predictions)),
+                4,
+            ),
+            "precision": round(
+                float(
+                    precision_score(
+                        labels,
+                        predictions,
+                        zero_division=0,
+                    )
+                ),
+                4,
+            ),
+            "recall": round(
+                float(recall_score(labels, predictions)),
+                4,
+            ),
+            "f1": round(
+                float(f1_score(labels, predictions)),
+                4,
+            ),
+            "false_positive_rate": round(
+                float(fp / (fp + tn)),
+                4,
+            ),
+            "confusion_matrix": {
+                "tn": int(tn),
+                "fp": int(fp),
+                "fn": int(fn),
+                "tp": int(tp),
+            },
+        }
+
+    tiers = np.array(
+        [
+            predictor.classify_probability(probability)
+            for probability in probabilities
+        ]
+    )
+
+    metrics["predictor_tiers"] = {
+        name: {
+            tier: int(np.sum(tiers[labels == label] == tier))
+            for tier in [
+                "Likely safe",
+                "Suspicious",
+                "Likely phishing",
+            ]
+        }
+        for label, name in [
+            (0, "legitimate"),
+            (1, "phishing"),
+        ]
+    }
+
+    return metrics
+
+
+def swap_scheme(url, old_scheme, new_scheme):
+    return new_scheme + url[len(old_scheme):]
+
+
+def evaluate_scheme_robustness(
+    urls,
+    labels,
+    probabilities,
+    model,
+    tokenizer,
+    batch_size,
+):
+    """Re-score URLs with the scheme swapped.
+
+    In this 2018 dataset almost all phishing URLs use http://,
+    while modern phishing pages mostly use https://. This shows
+    how much the model relies on the scheme alone.
+    """
+
+    results = {}
+
+    cases = [
+        (
+            "phishing_http_to_https",
+            1,
+            "http://",
+            "https://",
+        ),
+        (
+            "legitimate_https_to_http",
+            0,
+            "https://",
+            "http://",
+        ),
+    ]
+
+    for name, label, old_scheme, new_scheme in cases:
+        indices = [
+            index
+            for index, url in enumerate(urls)
+            if labels[index] == label
+            and url.startswith(old_scheme)
+        ]
+
+        swapped_urls = [
+            swap_scheme(urls[index], old_scheme, new_scheme)
+            for index in indices
+        ]
+
+        print(
+            f"\nScoring {len(swapped_urls)} URLs "
+            f"for {name}..."
+        )
+
+        swapped_probabilities = predict_probabilities(
+            swapped_urls,
+            model,
+            tokenizer,
+            batch_size,
+        )
+
+        original_probabilities = probabilities[indices]
+
+        results[name] = {
+            "count": len(indices),
+            "mean_probability_original": round(
+                float(original_probabilities.mean()),
+                4,
+            ),
+            "mean_probability_swapped": round(
+                float(swapped_probabilities.mean()),
+                4,
+            ),
+            "flagged_at_0.50_original": round(
+                float(np.mean(original_probabilities >= 0.50)),
+                4,
+            ),
+            "flagged_at_0.50_swapped": round(
+                float(np.mean(swapped_probabilities >= 0.50)),
+                4,
+            ),
+        }
+
+    return results
+
+
+def print_metrics(title, metrics):
+    print(f"\n{title}")
     print("=" * 70)
-
     print(
-        classification_report(
-            test_labels,
-            predictions,
-            target_names=[
-                "legitimate",
-                "phishing",
-            ],
-            digits=4,
-        )
+        f"URLs: {metrics['count']} "
+        f"(legitimate {metrics['legitimate']}, "
+        f"phishing {metrics['phishing']})"
     )
+    print(f"ROC-AUC: {metrics['roc_auc']}")
 
-    print("Accuracy:")
-    print(
-        accuracy_score(
-            test_labels,
-            predictions,
+    for threshold, values in metrics["thresholds"].items():
+        print(
+            f"Threshold {threshold}: "
+            f"accuracy {values['accuracy']}, "
+            f"precision {values['precision']}, "
+            f"recall {values['recall']}, "
+            f"F1 {values['f1']}, "
+            f"FPR {values['false_positive_rate']}"
         )
-    )
+        print(f"  Confusion matrix: {values['confusion_matrix']}")
 
-    print("\nConfusion matrix:")
-    print(
-        confusion_matrix(
-            test_labels,
-            predictions,
-        )
-    )
+    print(f"Predictor tiers: {metrics['predictor_tiers']}")
 
-    with OUTPUT_PATH.open(
-        "w",
-        newline="",
-        encoding="utf-8",
-    ) as file:
+
+def save_predictions(path, urls, labels, probabilities, seen):
+    with path.open("w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
 
         writer.writerow(
             [
                 "url",
                 "true_label",
-                "prediction",
                 "phishing_probability",
+                "seen_in_train",
             ]
         )
 
-        for url, label, prediction, probability in zip(
-            test_urls,
-            test_labels,
-            predictions,
-            probabilities,
-        ):
+        for row in zip(urls, labels, probabilities, seen):
+            url, label, probability, was_seen = row
+
             writer.writerow(
                 [
                     url,
                     int(label),
-                    int(prediction),
-                    float(probability),
+                    round(float(probability), 6),
+                    int(was_seen),
                 ]
             )
 
-    print(
-        f"\nPredictions saved to: {OUTPUT_PATH}"
+
+def main():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--model",
+        choices=["deployed", "base"],
+        default="deployed",
     )
+    parser.add_argument(
+        "--split",
+        choices=["test", "val"],
+        default="test",
+    )
+    parser.add_argument(
+        "--max-per-class",
+        type=int,
+        default=0,
+        help="Balanced subsample size per class, 0 = whole split.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=256,
+    )
+    parser.add_argument(
+        "--skip-scheme-check",
+        action="store_true",
+    )
+
+    args = parser.parse_args()
+
+    print(f"Loading dataset from:\n{DATASET_PATH}")
+
+    with DATASET_PATH.open("rb") as file:
+        data = dill.load(file)
+
+    urls, labels = load_split(data, args.split)
+
+    urls, labels = select_balanced_subset(
+        urls,
+        labels,
+        args.max_per_class,
+    )
+
+    train_urls = set(load_split(data, "train")[0])
+
+    del data
+
+    seen = np.array(
+        [url in train_urls for url in urls]
+    )
+
+    truncated = np.array(
+        [len(url) >= DATASET_URL_WIDTH for url in urls]
+    )
+
+    model, tokenizer, model_name = load_model(args.model)
+
+    print(f"\nModel: {model_name}")
+    print(f"Scoring {len(urls)} {args.split} URLs...")
+
+    probabilities = predict_probabilities(
+        urls,
+        model,
+        tokenizer,
+        args.batch_size,
+    )
+
+    results = {
+        "model": model_name,
+        "dataset": DATASET_PATH.name,
+        "split": args.split,
+        "max_per_class": args.max_per_class,
+        "urls_seen_in_train": int(seen.sum()),
+        "urls_probably_truncated": int(truncated.sum()),
+        "all": compute_metrics(labels, probabilities),
+        "unseen_in_train": compute_metrics(
+            labels[~seen],
+            probabilities[~seen],
+        ),
+    }
+
+    print_metrics(
+        f"{args.split} split, all URLs",
+        results["all"],
+    )
+    print_metrics(
+        f"{args.split} split, URLs not present in train",
+        results["unseen_in_train"],
+    )
+
+    if not args.skip_scheme_check:
+        results["scheme_robustness"] = (
+            evaluate_scheme_robustness(
+                urls,
+                labels,
+                probabilities,
+                model,
+                tokenizer,
+                args.batch_size,
+            )
+        )
+
+        print("\nScheme robustness")
+        print("=" * 70)
+
+        for name, values in results["scheme_robustness"].items():
+            print(f"{name}: {values}")
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    file_stem = f"urlbert_{args.model}_vonpower_{args.split}"
+
+    results_path = RESULTS_DIR / f"{file_stem}.json"
+
+    results_path.write_text(
+        json.dumps(results, indent=2),
+        encoding="utf-8",
+    )
+
+    predictions_path = (
+        RESULTS_DIR / f"{file_stem}_predictions.csv"
+    )
+
+    save_predictions(
+        predictions_path,
+        urls,
+        labels,
+        probabilities,
+        seen,
+    )
+
+    print(f"\nMetrics saved to: {results_path}")
+    print(f"Predictions saved to: {predictions_path}")
 
 
 if __name__ == "__main__":
