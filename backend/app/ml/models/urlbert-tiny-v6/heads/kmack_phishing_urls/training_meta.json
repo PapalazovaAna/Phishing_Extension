@@ -1,0 +1,17 @@
+{
+  "dataset": "kmack-Phishing_urls.csv",
+  "text_col": "text",
+  "label_col": "label",
+  "id2label": {
+    "0": "legitimate",
+    "1": "phishing"
+  },
+  "epochs": 20,
+  "metrics": {
+    "accuracy": 0.9089384078979492,
+    "loss": 0.25137314185466864,
+    "train_time_min": 0.8433407624562581,
+    "head_params": 396802
+  },
+  "total_time_min": 0.8674025734265646
+}

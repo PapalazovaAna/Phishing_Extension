@@ -1,24 +1,38 @@
-const BACKEND_URL = "http://127.0.0.1:8000/analyze";
+const BACKEND_URL =
+  "http://127.0.0.1:8000/analyze";
+
+const activePrechecks = new Set();
+
 
 function isAnalyzableUrl(url) {
   return (
     typeof url === "string" &&
-    (url.startsWith("http://") ||
-      url.startsWith("https://"))
+    (
+      url.startsWith("http://") ||
+      url.startsWith("https://")
+    )
   );
 }
 
-function analyzeUrl(url) {
 
+function isDevelopmentUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+
+    return (
+      parsedUrl.hostname === "localhost" ||
+      parsedUrl.hostname === "127.0.0.1" ||
+      parsedUrl.hostname === "::1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+
+function analyzeUrl(url) {
   let score = 0;
   const indicators = [];
-
-  if (!url) {
-    return {
-      score: 0,
-      indicators: ["The current URL could not be read."]
-    };
-  }
 
   let parsedUrl;
 
@@ -27,28 +41,43 @@ function analyzeUrl(url) {
   } catch {
     return {
       score: 100,
-      indicators: ["The value is not a valid URL."]
+      indicators: [
+        "The value is not a valid URL."
+      ]
     };
   }
 
   if (parsedUrl.protocol !== "https:") {
     score += 10;
-    indicators.push("The page does not use HTTPS.");
+    indicators.push(
+      "The page does not use HTTPS."
+    );
   }
 
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(parsedUrl.hostname)) {
+  if (
+    /^\d{1,3}(\.\d{1,3}){3}$/
+      .test(parsedUrl.hostname)
+  ) {
     score += 25;
-    indicators.push("The hostname is an IP address.");
+    indicators.push(
+      "The hostname is an IP address."
+    );
   }
 
   if (url.length > 100) {
     score += 10;
-    indicators.push("The URL is unusually long.");
+    indicators.push(
+      "The URL is unusually long."
+    );
   }
 
-  if (parsedUrl.hostname.split(".").length > 3) {
+  if (
+    parsedUrl.hostname.split(".").length > 3
+  ) {
     score += 10;
-    indicators.push("The hostname contains many subdomains.");
+    indicators.push(
+      "The hostname contains many subdomains."
+    );
   }
 
   const suspiciousWords = [
@@ -61,14 +90,16 @@ function analyzeUrl(url) {
 
   const lowerUrl = url.toLowerCase();
 
-  const foundWord = suspiciousWords.find((word) =>
-    lowerUrl.includes(word)
+  const foundWord = suspiciousWords.find(
+    function (word) {
+      return lowerUrl.includes(word);
+    }
   );
 
   if (foundWord) {
     score += 15;
     indicators.push(
-      'The URL contains the suspicious term "' + foundWord + '".'
+      `The URL contains the suspicious term "${foundWord}".`
     );
   }
 
@@ -78,8 +109,231 @@ function analyzeUrl(url) {
   };
 }
 
+
+async function analyzeWithBackend(url, domData) {
+  const urlData = analyzeUrl(url);
+
+  const response = await fetch(
+    BACKEND_URL,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url,
+        url_analysis: urlData,
+        dom: domData
+      })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Backend returned status " +
+      response.status
+    );
+  }
+
+  return await response.json();
+}
+
+
+function shouldBlockAutomatically(result) {
+  if (
+    !result ||
+    result.classification === "Unavailable"
+  ) {
+    return false;
+  }
+
+  const components = result.components || {};
+  const reputation = result.reputation || {};
+
+  const finalScore =
+    typeof result.score === "number"
+      ? result.score
+      : 0;
+
+  const urlScore =
+    typeof components.url_score === "number"
+      ? components.url_score
+      : 0;
+
+  const mlScore =
+    typeof components.ml_score === "number"
+      ? components.ml_score
+      : 0;
+
+  const reputationStatus =
+    reputation.status;
+
+  if (reputationStatus === "malicious") {
+    return true;
+  }
+
+  if (finalScore >= 70) {
+    return true;
+  }
+
+  if (mlScore >= 90 && urlScore >= 20) {
+    return true;
+  }
+
+  if (
+    reputationStatus === "suspicious" &&
+    (
+      mlScore >= 70 ||
+      urlScore >= 20
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+
+async function showWarningOverlay(
+  tabId,
+  url,
+  result
+) {
+  try {
+    await chrome.tabs.sendMessage(
+      tabId,
+      {
+        type: "SHOW_PHISHING_WARNING",
+        url,
+        result
+      }
+    );
+  } catch (error) {
+    console.warn(
+      "Could not show warning overlay:",
+      error
+    );
+  }
+}
+
+
+async function precheckTab(tabId, url) {
+  if (isDevelopmentUrl(url)) {
+    return;
+  }
+
+  const key = `${tabId}:${url}`;
+
+  if (activePrechecks.has(key)) {
+    return;
+  }
+
+  activePrechecks.add(key);
+
+  try {
+    const result = await analyzeWithBackend(
+      url,
+      {
+        score: 0,
+        indicators: []
+      }
+    );
+
+    if (shouldBlockAutomatically(result)) {
+      await showWarningOverlay(
+        tabId,
+        url,
+        result
+      );
+    }
+  } catch (error) {
+    console.warn(
+      "Precheck failed:",
+      error
+    );
+  } finally {
+    activePrechecks.delete(key);
+  }
+}
+
+
+chrome.tabs.onUpdated.addListener(
+  async function (tabId, changeInfo, tab) {
+    if (changeInfo.status !== "complete") {
+      return;
+    }
+
+    const url = tab.url;
+
+    if (!isAnalyzableUrl(url)) {
+      return;
+    }
+
+    if (isDevelopmentUrl(url)) {
+      return;
+    }
+
+    const bypassKey =
+      `bypass:${tabId}:${url}`;
+
+    const bypassData =
+      await chrome.storage.session.get(
+        bypassKey
+      );
+
+    if (bypassData[bypassKey]) {
+      await chrome.storage.session.remove(
+        bypassKey
+      );
+
+      return;
+    }
+
+    await precheckTab(tabId, url);
+  }
+);
+
+
 chrome.runtime.onMessage.addListener(
-  (message, sender, sendResponse) => {
+  function (message, sender, sendResponse) {
+    if (
+      message.type ===
+      "CONTINUE_ANYWAY_IN_PAGE"
+    ) {
+      const tabId = sender.tab
+        ? sender.tab.id
+        : null;
+
+      if (tabId !== null) {
+        const url = message.url;
+
+        const bypassKey =
+          `bypass:${tabId}:${url}`;
+
+        chrome.storage.session.set({
+          [bypassKey]: true
+        });
+      }
+
+      sendResponse({
+        success: true
+      });
+
+      return;
+    }
+
+    if (message.type === "GO_BACK") {
+      const tabId = sender.tab
+        ? sender.tab.id
+        : null;
+
+      if (tabId !== null) {
+        chrome.tabs.goBack(tabId);
+      }
+
+      return;
+    }
+
     if (message.type !== "ANALYZE_PAGE") {
       return;
     }
@@ -107,51 +361,44 @@ chrome.runtime.onMessage.addListener(
       {
         type: "ANALYZE_DOM"
       },
-      async (domResult) => {
-        const lastError = chrome.runtime.lastError;
+      async function (domResult) {
+        const lastError =
+          chrome.runtime.lastError;
 
-        const domData = lastError
-          ? {
-              score: 0,
-              indicators: []
-            }
-          : domResult;
-
-        const urlData = analyzeUrl(message.url);
+        const domData =
+          lastError || !domResult
+            ? {
+                score: 0,
+                indicators: []
+              }
+            : domResult;
 
         try {
-          const response = await fetch(BACKEND_URL, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              url: message.url,
-              url_analysis: urlData,
-              dom: domData
-            })
-          });
-
-          if (!response.ok) {
-            throw new Error(
-              "Backend returned status " + response.status
+          const result =
+            await analyzeWithBackend(
+              message.url,
+              domData
             );
-          }
-
-          const result = await response.json();
 
           sendResponse(result);
-        } catch (error) {
+        } catch {
+          const urlData =
+            analyzeUrl(message.url);
+
           sendResponse({
             score: null,
             classification: "Unavailable",
             indicators: [
               ...urlData.indicators.map(
-                (item) => "URL: " + item
+                function (item) {
+                  return "URL: " + item;
+                }
               ),
               "The backend could not be reached.",
               ...domData.indicators.map(
-                (item) => "DOM: " + item
+                function (item) {
+                  return "DOM: " + item;
+                }
               )
             ],
             components: {

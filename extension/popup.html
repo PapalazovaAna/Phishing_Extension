@@ -10,14 +10,12 @@
   <main class="container">
     <header class="header">
       <h1>Phishing Risk Detector</h1>
-      <p id="page-url" class="page-url">Loading page...</p>
+      <p id="page-url" class="page-url">
+        Loading page...
+      </p>
     </header>
 
-    <button id="analyze-button" class="analyze-button">
-      Analyze page
-    </button>
-
-    <p id="loading-message" class="loading-message hidden">
+    <p id="loading-message" class="loading-message">
       Analyzing page...
     </p>
 
@@ -26,11 +24,14 @@
     </section>
 
     <section id="result-section" class="result-section hidden">
-      <div id="warning-banner" class="warning-banner hidden"></div>
+      <section class="score-card">
+        <div id="score-value" class="score-value">
+          0/100
+        </div>
 
-      <div class="score-card">
-        <div id="score-value" class="score-value">0</div>
-        <div class="score-label">Risk score</div>
+        <div class="score-label">
+          Risk score
+        </div>
 
         <div class="progress-track">
           <div id="score-progress" class="progress-bar"></div>
@@ -39,37 +40,50 @@
         <div id="classification" class="classification">
           Likely safe
         </div>
-      </div>
-
-      <section class="details-section">
-        <h2>Analysis components</h2>
-
-        <div class="components-grid">
-          <div class="component-card">
-            <span>URL</span>
-            <strong id="url-score">-</strong>
-          </div>
-
-          <div class="component-card">
-            <span>ML</span>
-            <strong id="ml-score">-</strong>
-          </div>
-
-          <div class="component-card">
-            <span>DOM</span>
-            <strong id="dom-score">-</strong>
-          </div>
-
-          <div class="component-card">
-            <span>Reputation</span>
-            <strong id="reputation-score">-</strong>
-          </div>
-        </div>
       </section>
 
-      <section class="details-section">
-        <h2>Detected indicators</h2>
-        <ul id="indicator-list" class="indicator-list"></ul>
+      <button
+        id="details-toggle"
+        class="details-toggle"
+        type="button"
+      >
+        See details
+      </button>
+
+      <section
+        id="details-panel"
+        class="details-panel hidden"
+      >
+        <section class="details-section">
+          <h2>Analysis components</h2>
+
+          <div class="components-grid">
+            <div class="component-card">
+              <span>URL</span>
+              <strong id="url-score">-</strong>
+            </div>
+
+            <div class="component-card">
+              <span>ML</span>
+              <strong id="ml-score">-</strong>
+            </div>
+
+            <div class="component-card">
+              <span>DOM</span>
+              <strong id="dom-score">-</strong>
+            </div>
+
+            <div class="component-card">
+              <span>Reputation</span>
+              <strong id="reputation-score">-</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="details-section">
+          <h2>Detected indicators</h2>
+          <ul id="indicator-list" class="indicator-list"></ul>
+        </section>
       </section>
     </section>
   </main>

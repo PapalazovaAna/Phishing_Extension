@@ -1,0 +1,17 @@
+{
+  "dataset": "PhishBD_2026.csv",
+  "text_col": "url",
+  "label_col": "label",
+  "id2label": {
+    "0": "legitimate",
+    "1": "phishing"
+  },
+  "epochs": 20,
+  "metrics": {
+    "accuracy": 0.9726607799530029,
+    "loss": 0.13638447974304146,
+    "train_time_min": 0.15629632472991944,
+    "head_params": 396802
+  },
+  "total_time_min": 0.16665396690368653
+}

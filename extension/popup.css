@@ -199,3 +199,28 @@ h2 {
   color: #991b1b;
   font-size: 13px;
 }
+
+.details-toggle {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  background: white;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.details-toggle:hover {
+  background: #eff6ff;
+}
+
+.details-panel {
+  margin-top: 4px;
+}
+
+.details-panel.hidden {
+  display: none;
+}

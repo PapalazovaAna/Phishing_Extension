@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Phishing Risk Detector",
-  "version": "0.1.0",
-  "description": "Analyzes the current webpage URL for basic phishing indicators.",
+  "version": "0.2.0",
+  "description": "Detects potentially malicious webpages using URL, reputation, machine learning and DOM analysis.",
   "action": {
     "default_popup": "popup.html"
   },
@@ -17,12 +17,15 @@
       ],
       "js": [
         "content-script.js"
-      ]
+      ],
+      "run_at": "document_idle"
     }
   ],
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "tabs",
+    "storage"
   ],
   "host_permissions": [
     "http://127.0.0.1:8000/*"

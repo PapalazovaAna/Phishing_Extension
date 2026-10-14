@@ -1,0 +1,32 @@
+{
+  "dataset": "snats_urls_classification_clean.csv",
+  "text_col": "url",
+  "label_col": "classification",
+  "id2label": {
+    "0": "arts",
+    "1": "business",
+    "2": "education",
+    "3": "engineering",
+    "4": "environment",
+    "5": "finance",
+    "6": "government",
+    "7": "health",
+    "8": "history",
+    "9": "legal",
+    "10": "mathematics",
+    "11": "other",
+    "12": "philosophy",
+    "13": "science",
+    "14": "social-sciences",
+    "15": "sports",
+    "16": "tech"
+  },
+  "epochs": 20,
+  "metrics": {
+    "accuracy": 0.5890551805496216,
+    "loss": 1.4641596770867882,
+    "train_time_min": 0.5906437079111735,
+    "head_params": 400657
+  },
+  "total_time_min": 0.6273437976837158
+}

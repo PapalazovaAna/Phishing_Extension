@@ -1,0 +1,30 @@
+{
+  "architectures": [
+    "SmartHeadForSequenceClassification"
+  ],
+  "auto_map": {
+    "AutoConfig": "modeling_smart_head.SmartHeadConfig",
+    "AutoModelForSequenceClassification": "modeling_smart_head.SmartHeadForSequenceClassification"
+  },
+  "dataset_name": "malicious_urls_4class",
+  "encoder_hidden_size": 128,
+  "encoder_name_or_path": "CrabInHoney/urlbert-tiny-v6",
+  "head_dropout": 0.15,
+  "head_hidden_size": 256,
+  "id2label": {
+    "0": "benign",
+    "1": "defacement",
+    "2": "malware",
+    "3": "phishing"
+  },
+  "label2id": {
+    "benign": 0,
+    "defacement": 1,
+    "malware": 2,
+    "phishing": 3
+  },
+  "max_length": 256,
+  "model_type": "smart_mean_cls_head",
+  "pooling": "cls+mean+diff+mult",
+  "transformers_version": "5.14.1"
+}

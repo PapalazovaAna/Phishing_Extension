@@ -1,0 +1,19 @@
+{
+  "dataset": "malicious-urls-dataset.csv",
+  "text_col": "url",
+  "label_col": "type",
+  "id2label": {
+    "0": "benign",
+    "1": "defacement",
+    "2": "malware",
+    "3": "phishing"
+  },
+  "epochs": 20,
+  "metrics": {
+    "accuracy": 0.9925958514213562,
+    "loss": 0.1555537018548631,
+    "train_time_min": 0.7443926334381104,
+    "head_params": 397316
+  },
+  "total_time_min": 0.772351348400116
+}

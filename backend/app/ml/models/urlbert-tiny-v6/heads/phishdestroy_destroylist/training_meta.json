@@ -1,0 +1,17 @@
+{
+  "dataset": "mblocklist_processed.csv",
+  "text_col": "url",
+  "label_col": "labels",
+  "id2label": {
+    "0": "clean",
+    "1": "malicious"
+  },
+  "epochs": 20,
+  "metrics": {
+    "accuracy": 0.9567546844482422,
+    "loss": 0.18230271612955526,
+    "train_time_min": 2.1694424589474997,
+    "head_params": 396802
+  },
+  "total_time_min": 2.2245529691378274
+}

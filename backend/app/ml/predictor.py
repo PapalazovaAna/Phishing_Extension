@@ -11,13 +11,13 @@ from transformers import (
 MODEL_DIRECTORY = (
     Path(__file__).parent
     / "models"
-    / "urlbert-tiny-v4-phishing-classifier"
+    / "urlbert_vonpower_full"
 )
-
 
 tokenizer = AutoTokenizer.from_pretrained(
     str(MODEL_DIRECTORY),
     local_files_only=True,
+    use_fast=True,
 )
 
 model = AutoModelForSequenceClassification.from_pretrained(
@@ -26,6 +26,10 @@ model = AutoModelForSequenceClassification.from_pretrained(
 )
 
 model.eval()
+model.to("cpu")
+
+
+CHUNK_OVERLAP = 16
 
 
 def classify_probability(
@@ -38,6 +42,104 @@ def classify_probability(
         return "Suspicious"
 
     return "Likely safe"
+
+
+def create_url_chunks(url: str):
+    max_length = int(
+        model.config.max_position_embeddings
+    )
+
+    tokens = tokenizer.tokenize(url)
+
+    token_ids = tokenizer.convert_tokens_to_ids(
+        tokens
+    )
+
+    content_length = max_length - 2
+
+    if len(token_ids) <= content_length:
+        chunks = [token_ids]
+    else:
+        step = content_length - CHUNK_OVERLAP
+        chunks = []
+
+        for start in range(
+            0,
+            len(token_ids),
+            step,
+        ):
+            chunk = token_ids[
+                start:start + content_length
+            ]
+
+            if chunk:
+                chunks.append(chunk)
+
+            if start + content_length >= len(
+                token_ids
+            ):
+                break
+
+    input_ids = []
+    attention_masks = []
+
+    for chunk in chunks:
+        ids = [
+            tokenizer.cls_token_id,
+            *chunk,
+            tokenizer.sep_token_id,
+        ]
+
+        mask = [1] * len(ids)
+
+        padding_length = max_length - len(ids)
+
+        ids.extend(
+            [tokenizer.pad_token_id or 0]
+            * padding_length
+        )
+
+        mask.extend(
+            [0] * padding_length
+        )
+
+        input_ids.append(ids)
+        attention_masks.append(mask)
+
+    return (
+        torch.tensor(
+            input_ids,
+            dtype=torch.long,
+        ),
+        torch.tensor(
+            attention_masks,
+            dtype=torch.long,
+        ),
+    )
+
+
+def predict_probability(url: str) -> float:
+    input_ids, attention_masks = (
+        create_url_chunks(url)
+    )
+
+    with torch.no_grad():
+        outputs = model(
+            input_ids=input_ids,
+            attention_mask=attention_masks,
+        )
+
+    # Mean logits across all URL chunks.
+    # This is the same aggregation used during evaluation.
+    mean_logits = outputs.logits.mean(dim=0)
+
+    probabilities = torch.softmax(
+        mean_logits,
+        dim=0,
+    )
+
+    # Label 1 = phishing
+    return float(probabilities[1])
 
 
 def predict_url(url: str) -> dict[str, Any]:
@@ -67,43 +169,3 @@ def predict_url(url: str) -> dict[str, Any]:
         "probability": probability,
         "indicator": indicator,
     }
-
-def predict_probability(url: str) -> float:
-    max_length = int(
-        model.config.max_position_embeddings
-    )
-
-    encoded = tokenizer(
-        url,
-        truncation=True,
-        max_length=max_length,
-        stride=16,
-        padding=True,
-        return_overflowing_tokens=True,
-        return_tensors="pt",
-    )
-
-    model_inputs = {
-        key: value
-        for key, value in encoded.items()
-        if key in {
-            "input_ids",
-            "attention_mask",
-            "token_type_ids",
-        }
-    }
-
-    with torch.no_grad():
-        outputs = model(**model_inputs)
-
-    probabilities = torch.softmax(
-        outputs.logits,
-        dim=1,
-    )
-
-    chunk_probabilities = probabilities[:, 1]
-
-    # The most suspicious chunk determines the ML score.
-    return float(
-        chunk_probabilities.max()
-    )

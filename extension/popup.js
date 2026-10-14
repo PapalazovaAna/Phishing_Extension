@@ -1,31 +1,59 @@
-const pageUrlElement = document.getElementById("page-url");
-const analyzeButton = document.getElementById("analyze-button");
-const loadingMessage = document.getElementById("loading-message");
-const errorSection = document.getElementById("error-section");
-const errorMessage = document.getElementById("error-message");
-const resultSection = document.getElementById("result-section");
-const warningBanner = document.getElementById("warning-banner");
-const scoreValue = document.getElementById("score-value");
-const scoreProgress = document.getElementById("score-progress");
-const classification = document.getElementById("classification");
-const urlScore = document.getElementById("url-score");
-const mlScore = document.getElementById("ml-score");
-const domScore = document.getElementById("dom-score");
-const reputationScore = document.getElementById("reputation-score");
-const indicatorList = document.getElementById("indicator-list");
+const pageUrlElement =
+  document.getElementById("page-url");
 
+const loadingMessage =
+  document.getElementById("loading-message");
+
+const errorSection =
+  document.getElementById("error-section");
+
+const errorMessage =
+  document.getElementById("error-message");
+
+const resultSection =
+  document.getElementById("result-section");
+
+const scoreValue =
+  document.getElementById("score-value");
+
+const scoreProgress =
+  document.getElementById("score-progress");
+
+const classification =
+  document.getElementById("classification");
+
+const detailsToggle =
+  document.getElementById("details-toggle");
+
+const detailsPanel =
+  document.getElementById("details-panel");
+
+const urlScore =
+  document.getElementById("url-score");
+
+const mlScore =
+  document.getElementById("ml-score");
+
+const domScore =
+  document.getElementById("dom-score");
+
+const reputationScore =
+  document.getElementById("reputation-score");
+
+const indicatorList =
+  document.getElementById("indicator-list");
 
 function setLoading(isLoading) {
-  loadingMessage.classList.toggle("hidden", !isLoading);
-  analyzeButton.disabled = isLoading;
+  loadingMessage.classList.toggle(
+    "hidden",
+    !isLoading
+  );
 
   if (isLoading) {
-    analyzeButton.textContent = "Analyzing...";
-  } else {
-    analyzeButton.textContent = "Analyze again";
+    loadingMessage.textContent =
+      "Analyzing page...";
   }
 }
-
 
 function getRiskClass(score, resultClassification) {
   if (
@@ -46,44 +74,6 @@ function getRiskClass(score, resultClassification) {
   return "safe";
 }
 
-
-function getWarningText(score, resultClassification) {
-  if (
-    resultClassification === "Not available" ||
-    resultClassification === "Unavailable"
-  ) {
-    return "Analysis is currently unavailable.";
-  }
-
-  if (score >= 70) {
-    return "Warning: This page may be a phishing website.";
-  }
-
-  if (score >= 40) {
-    return "Caution: This page contains suspicious indicators.";
-  }
-
-  return "This page appears to be likely safe.";
-}
-
-
-function displayScore(score, riskClass, hasScore = true) {
-  scoreValue.textContent = hasScore
-    ? `${score}/100`
-    : "N/A";
-
-  scoreProgress.style.width = hasScore
-    ? `${score}%`
-    : "0%";
-
-  scoreValue.style.color =
-    getColorForRiskClass(riskClass);
-
-  scoreProgress.style.background =
-    getColorForRiskClass(riskClass);
-}
-
-
 function getColorForRiskClass(riskClass) {
   if (riskClass === "dangerous") {
     return "#dc2626";
@@ -100,13 +90,30 @@ function getColorForRiskClass(riskClass) {
   return "#16a34a";
 }
 
+function displayScore(score, riskClass, hasScore) {
+  scoreValue.textContent = hasScore
+    ? `${score}/100`
+    : "N/A";
+
+  scoreProgress.style.width = hasScore
+    ? `${score}%`
+    : "0%";
+
+  const color =
+    getColorForRiskClass(riskClass);
+
+  scoreValue.style.color = color;
+  scoreProgress.style.background = color;
+}
 
 function displayIndicators(indicators) {
   indicatorList.innerHTML = "";
 
   if (!indicators || indicators.length === 0) {
     const item = document.createElement("li");
-    item.textContent = "No indicators were detected.";
+    item.textContent =
+      "No indicators were detected.";
+
     indicatorList.appendChild(item);
     return;
   }
@@ -118,9 +125,11 @@ function displayIndicators(indicators) {
   }
 }
 
-
 function displayComponentScore(element, value) {
-  if (value === null || value === undefined) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
     element.textContent = "N/A";
     return;
   }
@@ -128,10 +137,13 @@ function displayComponentScore(element, value) {
   element.textContent = `${value}/100`;
 }
 
-
 function displayResult(result) {
-  const hasScore = typeof result.score === "number";
-  const score = hasScore ? result.score : 0;
+  const hasScore =
+    typeof result.score === "number";
+
+  const score = hasScore
+    ? result.score
+    : 0;
 
   const resultClassification =
     result.classification || "Unavailable";
@@ -144,18 +156,17 @@ function displayResult(result) {
   resultSection.classList.remove("hidden");
   errorSection.classList.add("hidden");
 
-  warningBanner.className = `warning-banner ${riskClass}`;
-  warningBanner.textContent = getWarningText(
+  classification.textContent =
+    resultClassification;
+
+  displayScore(
     score,
-    resultClassification
+    riskClass,
+    hasScore
   );
-  warningBanner.classList.remove("hidden");
 
-  classification.textContent = resultClassification;
-
-  displayScore(score, riskClass, hasScore);
-
-  const components = result.components || {};
+  const components =
+    result.components || {};
 
   displayComponentScore(
     urlScore,
@@ -178,8 +189,10 @@ function displayResult(result) {
   );
 
   displayIndicators(result.indicators);
-}
 
+  detailsPanel.classList.add("hidden");
+  detailsToggle.textContent = "See details";
+}
 
 function displayError(message) {
   resultSection.classList.add("hidden");
@@ -187,10 +200,8 @@ function displayError(message) {
   errorMessage.textContent = message;
 }
 
-
 async function analyzeCurrentPage() {
   setLoading(true);
-  errorSection.classList.add("hidden");
 
   try {
     const tabs = await chrome.tabs.query({
@@ -206,13 +217,15 @@ async function analyzeCurrentPage() {
       );
     }
 
-    pageUrlElement.textContent = currentTab.url;
+    pageUrlElement.textContent =
+      currentTab.url;
 
-    const result = await chrome.runtime.sendMessage({
-      type: "ANALYZE_PAGE",
-      url: currentTab.url,
-      tabId: currentTab.id
-    });
+    const result =
+      await chrome.runtime.sendMessage({
+        type: "ANALYZE_PAGE",
+        url: currentTab.url,
+        tabId: currentTab.id
+      });
 
     if (!result) {
       throw new Error(
@@ -223,19 +236,30 @@ async function analyzeCurrentPage() {
     displayResult(result);
   } catch (error) {
     displayError(
-      error.message || "An unexpected error occurred."
+      error.message ||
+        "An unexpected error occurred."
     );
   } finally {
     setLoading(false);
   }
 }
 
-
-analyzeButton.addEventListener(
+detailsToggle.addEventListener(
   "click",
-  analyzeCurrentPage
-);
+  () => {
+    const isHidden =
+      detailsPanel.classList.contains("hidden");
 
+    detailsPanel.classList.toggle(
+      "hidden",
+      !isHidden
+    );
+
+    detailsToggle.textContent = isHidden
+      ? "Hide details"
+      : "See details";
+  }
+);
 
 document.addEventListener(
   "DOMContentLoaded",
