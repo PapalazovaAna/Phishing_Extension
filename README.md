@@ -8,7 +8,7 @@ score from 0 to 100:
 |---|---|---|
 | URL heuristics | extension | HTTPS, IP address as host, URL length, number of subdomains, words like `login` or `verify` |
 | DOM analysis | extension | password fields, forms that submit to another origin, texts like "verify your account" |
-| Machine learning | backend | URLBERT model fine-tuned on 1.25M URLs, returns a phishing probability |
+| Machine learning | backend | URLBERT model trained on 1.7M URLs from two datasets, returns a phishing probability |
 | Reputation | backend | exact match in the OpenPhish feed, presence in the Tranco top 1M list |
 | Typosquatting | backend | domains that imitate popular domains (`rnicrosoft.com`, `amazom.com`, `paypal-login.com`, `paypal.com.account-check.xyz`) |
 
@@ -75,12 +75,14 @@ backend/
     reputation_downloader.py
     reputation_data/      downloaded OpenPhish and Tranco lists
     ml/predictor.py       URLBERT inference
-    ml/models/urlbert_vonpower_full/   fine-tuned model
+    ml/models/urlbert_combined_v2/     current URL model
+    ml/models/urlbert_vonpower_full/   previous URL model (for comparison)
   ml/                     training, evaluation and dataset scripts
     train_urlbert_vonpower.ipynb       fine-tuning notebook (Google Colab)
     train_urlbert_combined.ipynb       second model: vonpower + ealvaradob, no scheme
     evaluate_urlbert_vonpower.py       evaluation on the held-out test split
     evaluate_urlbert_ealvaradob.py     evaluation on an independent dataset
+    evaluate_pipeline.py               evaluation of the complete scoring pipeline
     results/              evaluation metrics (JSON)
   tests/
 extension/                Chrome extension (Manifest V3)
@@ -126,16 +128,41 @@ pytest
 
 ## Machine learning model
 
-The model is
-[`CrabInHoney/urlbert-tiny-v4-phishing-classifier`](https://huggingface.co/CrabInHoney/urlbert-tiny-v4-phishing-classifier),
-a small BERT model for URLs, fine-tuned for one epoch on the 1,247,489
-training URLs of the vonpower dataset (`vonDataset20180426.dill`). The
-training was done on Google Colab with a T4 GPU and is documented in
-[`backend/ml/train_urlbert_vonpower.ipynb`](backend/ml/train_urlbert_vonpower.ipynb).
+The backend uses `urlbert_combined_v2`, a small BERT model for URLs
+(8 layers, 64 tokens, about 4M parameters). It was trained from
+[`CrabInHoney/urlbert-tiny-base-v4`](https://huggingface.co/CrabInHoney/urlbert-tiny-base-v4),
+which is pre-trained on URLs without phishing labels, for two epochs on
+1,708,272 URLs from two datasets:
+
+- vonpower (`vonDataset20180426.dill`), official training split
+- [`ealvaradob/phishing-dataset`](https://huggingface.co/datasets/ealvaradob/phishing-dataset),
+  80% of the URLs (the split is selected by a hash of the URL)
+
+The URL scheme (`http://`, `https://`) is removed before training and
+before every prediction (`preprocessing.json` in the model directory), so
+the model cannot use it. URLs from both test sets are excluded from the
+training data. Training took 21 minutes on a free Google Colab T4 GPU and
+is documented in
+[`backend/ml/train_urlbert_combined.ipynb`](backend/ml/train_urlbert_combined.ipynb).
 
 The model accepts at most 64 tokens. Longer URLs are split into
 overlapping chunks and the logits of all chunks are averaged, both
 during training and in [`predictor.py`](backend/app/ml/predictor.py).
+
+### Previous model
+
+The first model, `urlbert_vonpower_full`, was the phishing classifier
+[`CrabInHoney/urlbert-tiny-v4-phishing-classifier`](https://huggingface.co/CrabInHoney/urlbert-tiny-v4-phishing-classifier)
+fine-tuned for one epoch on vonpower only
+([`train_urlbert_vonpower.ipynb`](backend/ml/train_urlbert_vonpower.ipynb)).
+Its evaluation showed two problems that the second model addresses:
+
+1. In vonpower 97% of the phishing URLs use `http://`, and the model
+   learned that `http://` means phishing. When the phishing test URLs were
+   rewritten to `https://`, the share it detected dropped from 98.6% to
+   90.9%. Most phishing pages today use HTTPS.
+2. On the independent ealvaradob dataset it reached only an F1 of 0.82
+   with a recall of 74%, compared to 0.99 on its own test split.
 
 ### Evaluation
 
@@ -145,63 +172,68 @@ The evaluation scripts need the additional packages from
 
 ```bash
 pip install -r requirements-ml.txt
-python -m ml.evaluate_urlbert_vonpower
-python -m ml.evaluate_urlbert_vonpower --model base
 python -m ml.download_ealvaradob_dataset
-python -m ml.evaluate_urlbert_ealvaradob --scheme https
+python -m ml.evaluate_urlbert_vonpower --model-dir app/ml/models/urlbert_combined_v2
+python -m ml.evaluate_urlbert_ealvaradob --model-dir app/ml/models/urlbert_combined_v2
+python -m ml.evaluate_urlbert_vonpower --model-dir app/ml/models/urlbert_vonpower_full
+python -m ml.evaluate_urlbert_ealvaradob --model-dir app/ml/models/urlbert_vonpower_full
+python -m ml.evaluate_pipeline
 ```
 
-**vonpower test split** (155,937 URLs, not used for training, threshold 0.5):
+All results are for threshold 0.5. Both test sets were never used for
+training the current model.
+
+**vonpower test split** (155,937 URLs):
 
 | Model | ROC-AUC | Precision | Recall | F1 | False positive rate |
 |---|---|---|---|---|---|
-| Base model | 0.9713 | 0.815 | 0.968 | 0.885 | 20.7% |
-| Fine-tuned model | 0.9991 | 0.992 | 0.984 | 0.988 | 0.8% |
+| Original classifier (no fine-tuning) | 0.9713 | 0.815 | 0.968 | 0.885 | 20.7% |
+| `urlbert_vonpower_full` (previous) | 0.9991 | 0.992 | 0.984 | 0.988 | 0.8% |
+| **`urlbert_combined_v2` (current)** | 0.9985 | 0.991 | 0.970 | 0.981 | 0.8% |
 
-The results are the same on the 144,699 test URLs that do not appear in
-the training data (F1 0.9877).
+**ealvaradob test split** (76,304 URLs, every URL rewritten to `https://`,
+because most legitimate URLs in this dataset have no scheme):
 
-**ealvaradob dataset** (independent dataset, threshold 0.5). The dataset
-has no official split, so 10% of the URLs are selected as test split by a
-hash of the URL (76,304 URLs after removing duplicates and URLs from the
-vonpower training data; the same split is used by
-`train_urlbert_combined.ipynb`). Most legitimate URLs in this dataset have
-no scheme, so every URL was rewritten to the same scheme to keep the scheme
-from deciding the result:
+| Model | ROC-AUC | Precision | Recall | F1 | False positive rate |
+|---|---|---|---|---|---|
+| Original classifier* | 0.9873 | 0.878 | 0.960 | 0.917 | 10.1% |
+| `urlbert_vonpower_full` (previous) | 0.9555 | 0.918 | 0.740 | 0.820 | 5.0% |
+| **`urlbert_combined_v2` (current)** | 0.9962 | 0.963 | 0.975 | 0.969 | 2.8% |
 
-| Model | Scheme | ROC-AUC | Precision | Recall | F1 | False positive rate |
-|---|---|---|---|---|---|---|
-| Fine-tuned model | `https://` | 0.9555 | 0.918 | 0.740 | 0.820 | 5.0% |
-| Fine-tuned model | `http://` | 0.9506 | 0.773 | 0.950 | 0.852 | 21.1% |
-| Base model* | `https://` | 0.9873 | 0.878 | 0.960 | 0.917 | 10.1% |
-| Base model* | `http://` | 0.9735 | 0.864 | 0.908 | 0.885 | 10.8% |
+\* The original classifier was trained on the whole ealvaradob dataset,
+including this test split, so its result is not an independent evaluation.
 
-\* The base model was trained on this dataset, so its results here are
-not an independent evaluation. In the same way, the fine-tuned model is
-evaluated on its own distribution in the vonpower table. Each model is
-best on the data it was trained on; on the other dataset both reach an
-F1 of about 0.82 to 0.89.
+With `http://` instead of `https://`, the previous model's false positive
+rate rises from 5.0% to 21.1%, while the current model gives exactly the
+same predictions for both schemes.
 
-For the fine-tuned model, the `https://` row is the realistic one,
-because browsers mostly visit HTTPS pages: it detects about three out of
-four phishing URLs from a different source, with 5% false positives.
-The difference between the two rows comes only from the scheme, which
-confirms the scheme bias described below.
+**Complete pipeline.** [`evaluate_pipeline.py`](backend/ml/evaluate_pipeline.py)
+runs every test URL through the whole backend: URL heuristics (a Python
+port of the extension code), ML model, reputation lists, typosquatting
+and `scoring.py`. The DOM score is 0 because the datasets contain no page
+content; this is also the situation of the automatic check when a page
+is opened. Share of URLs classified as *Suspicious* or *Likely phishing*:
+
+| Dataset | Model | Phishing detected | Legitimate flagged |
+|---|---|---|---|
+| vonpower | previous | 88.8% | 0.09% |
+| vonpower | current | 86.8% | 0.08% |
+| ealvaradob | previous | 51.5% | 1.32% |
+| ealvaradob | current | 85.2% | 0.68% |
 
 ### Limitations
 
-- The training data is from 2018. In this dataset 97% of the phishing
-  URLs use `http://`, so the model partly learned that `http://` means
-  phishing. When the phishing test URLs are rewritten to `https://`,
-  the share detected at threshold 0.5 drops from 98.6% to 90.9%. Most
-  phishing pages today use HTTPS, so the real-world recall of the model
-  alone is lower than on the test split. The reputation, typosquatting
-  and DOM signals compensate for this.
-- On an independent dataset the model reaches an F1 of 0.82 (`https://`)
-  instead of 0.99 on its own test split, so it generalises only partly
-  to phishing URLs from other sources. Training on several datasets and
-  randomising the scheme during training would likely reduce both
-  problems.
+- In both datasets the legitimate URLs are mostly content pages. Login
+  pages of legitimate sites therefore get high ML scores (Gmail 81%, the
+  FINKI courses login 96%). For domains in the Tranco list this has no
+  effect, because their score is limited to 20, but a login page of a
+  small legitimate site that is in no list is classified as *Suspicious*.
+- Without DOM data the score of an unknown domain can hardly reach 70, so
+  most phishing pages are *Suspicious* rather than *Likely phishing*. The
+  automatic warning is shown only for pages that match the blocking rules
+  in `scoring.py`.
+- The vonpower dataset is from 2018, newer phishing techniques are only
+  represented by the ealvaradob data.
 - The URL and DOM heuristics are computed in the extension and sent to
   the backend, so their scores are not verified by the backend.
 - The reputation data is a local snapshot and has to be refreshed with
@@ -212,4 +244,4 @@ confirms the scheme bias described below.
 - [OpenPhish](https://openphish.com/) public feed of phishing URLs
 - [Tranco](https://tranco-list.eu/) list of the top 1 million domains
 - vonpower dataset `vonDataset20180426.dill` (training and test data)
-- [`ealvaradob/phishing-dataset`](https://huggingface.co/datasets/ealvaradob/phishing-dataset) (independent evaluation)
+- [`ealvaradob/phishing-dataset`](https://huggingface.co/datasets/ealvaradob/phishing-dataset) (training and independent evaluation)

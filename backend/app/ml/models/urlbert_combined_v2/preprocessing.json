@@ -1,0 +1,6 @@
+{
+  "strip_scheme": true,
+  "max_length": 64,
+  "chunk_overlap": 16,
+  "aggregation": "mean_logits"
+}

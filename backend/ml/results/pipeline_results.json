@@ -1,0 +1,250 @@
+{
+  "vonpower_full_vonpower": {
+    "legitimate": {
+      "all": {
+        "count": 80162,
+        "blocked": 0.0002,
+        "Likely safe": 0.9991,
+        "Suspicious": 0.0009,
+        "Likely phishing": 0.0
+      },
+      "popular": {
+        "count": 61826,
+        "blocked": 0.0002,
+        "Likely safe": 1.0,
+        "Suspicious": 0.0,
+        "Likely phishing": 0.0
+      },
+      "suspicious": {
+        "count": 21,
+        "blocked": 0.0476,
+        "Likely safe": 0.0,
+        "Suspicious": 1.0,
+        "Likely phishing": 0.0
+      },
+      "unknown": {
+        "count": 18315,
+        "blocked": 0.0004,
+        "Likely safe": 0.9974,
+        "Suspicious": 0.0026,
+        "Likely phishing": 0.0
+      }
+    },
+    "phishing": {
+      "all": {
+        "count": 75775,
+        "blocked": 0.4644,
+        "Likely safe": 0.112,
+        "Suspicious": 0.8534,
+        "Likely phishing": 0.0346
+      },
+      "popular": {
+        "count": 6571,
+        "blocked": 0.3721,
+        "Likely safe": 1.0,
+        "Suspicious": 0.0,
+        "Likely phishing": 0.0
+      },
+      "suspicious": {
+        "count": 2466,
+        "blocked": 0.9959,
+        "Likely safe": 0.0,
+        "Suspicious": 0.0426,
+        "Likely phishing": 0.9574
+      },
+      "unknown": {
+        "count": 66738,
+        "blocked": 0.4538,
+        "Likely safe": 0.0287,
+        "Suspicious": 0.9674,
+        "Likely phishing": 0.0039
+      }
+    }
+  },
+  "vonpower_full_ealvaradob": {
+    "legitimate": {
+      "all": {
+        "count": 43477,
+        "blocked": 0.0002,
+        "Likely safe": 0.9868,
+        "Suspicious": 0.0132,
+        "Likely phishing": 0.0
+      },
+      "popular": {
+        "count": 28677,
+        "blocked": 0.0,
+        "Likely safe": 1.0,
+        "Suspicious": 0.0,
+        "Likely phishing": 0.0
+      },
+      "suspicious": {
+        "count": 35,
+        "blocked": 0.0571,
+        "Likely safe": 0.0,
+        "Suspicious": 1.0,
+        "Likely phishing": 0.0
+      },
+      "unknown": {
+        "count": 14765,
+        "blocked": 0.0003,
+        "Likely safe": 0.9634,
+        "Suspicious": 0.0366,
+        "Likely phishing": 0.0001
+      }
+    },
+    "phishing": {
+      "all": {
+        "count": 32827,
+        "blocked": 0.0969,
+        "Likely safe": 0.4852,
+        "Suspicious": 0.5093,
+        "Likely phishing": 0.0055
+      },
+      "popular": {
+        "count": 3452,
+        "blocked": 0.0939,
+        "Likely safe": 1.0,
+        "Suspicious": 0.0,
+        "Likely phishing": 0.0
+      },
+      "suspicious": {
+        "count": 348,
+        "blocked": 0.9282,
+        "Likely safe": 0.0,
+        "Suspicious": 0.4799,
+        "Likely phishing": 0.5201
+      },
+      "unknown": {
+        "count": 29027,
+        "blocked": 0.0873,
+        "Likely safe": 0.4298,
+        "Suspicious": 0.5702,
+        "Likely phishing": 0.0
+      }
+    }
+  },
+  "combined_v2_vonpower": {
+    "legitimate": {
+      "all": {
+        "count": 80162,
+        "blocked": 0.0004,
+        "Likely safe": 0.9992,
+        "Suspicious": 0.0008,
+        "Likely phishing": 0.0
+      },
+      "popular": {
+        "count": 61826,
+        "blocked": 0.0004,
+        "Likely safe": 1.0,
+        "Suspicious": 0.0,
+        "Likely phishing": 0.0
+      },
+      "suspicious": {
+        "count": 21,
+        "blocked": 0.0476,
+        "Likely safe": 0.0,
+        "Suspicious": 1.0,
+        "Likely phishing": 0.0
+      },
+      "unknown": {
+        "count": 18315,
+        "blocked": 0.0003,
+        "Likely safe": 0.9976,
+        "Suspicious": 0.0024,
+        "Likely phishing": 0.0
+      }
+    },
+    "phishing": {
+      "all": {
+        "count": 75775,
+        "blocked": 0.4619,
+        "Likely safe": 0.1321,
+        "Suspicious": 0.8333,
+        "Likely phishing": 0.0346
+      },
+      "popular": {
+        "count": 6571,
+        "blocked": 0.3709,
+        "Likely safe": 1.0,
+        "Suspicious": 0.0,
+        "Likely phishing": 0.0
+      },
+      "suspicious": {
+        "count": 2466,
+        "blocked": 0.9923,
+        "Likely safe": 0.0,
+        "Suspicious": 0.041,
+        "Likely phishing": 0.959
+      },
+      "unknown": {
+        "count": 66738,
+        "blocked": 0.4513,
+        "Likely safe": 0.0515,
+        "Suspicious": 0.9446,
+        "Likely phishing": 0.0039
+      }
+    }
+  },
+  "combined_v2_ealvaradob": {
+    "legitimate": {
+      "all": {
+        "count": 43477,
+        "blocked": 0.0002,
+        "Likely safe": 0.9932,
+        "Suspicious": 0.0068,
+        "Likely phishing": 0.0
+      },
+      "popular": {
+        "count": 28677,
+        "blocked": 0.0,
+        "Likely safe": 1.0,
+        "Suspicious": 0.0,
+        "Likely phishing": 0.0
+      },
+      "suspicious": {
+        "count": 35,
+        "blocked": 0.0,
+        "Likely safe": 0.0,
+        "Suspicious": 1.0,
+        "Likely phishing": 0.0
+      },
+      "unknown": {
+        "count": 14765,
+        "blocked": 0.0004,
+        "Likely safe": 0.9825,
+        "Suspicious": 0.0175,
+        "Likely phishing": 0.0
+      }
+    },
+    "phishing": {
+      "all": {
+        "count": 32827,
+        "blocked": 0.102,
+        "Likely safe": 0.1484,
+        "Suspicious": 0.8461,
+        "Likely phishing": 0.0055
+      },
+      "popular": {
+        "count": 3452,
+        "blocked": 0.1008,
+        "Likely safe": 1.0,
+        "Suspicious": 0.0,
+        "Likely phishing": 0.0
+      },
+      "suspicious": {
+        "count": 348,
+        "blocked": 0.9943,
+        "Likely safe": 0.0,
+        "Suspicious": 0.477,
+        "Likely phishing": 0.523
+      },
+      "unknown": {
+        "count": 29027,
+        "blocked": 0.0914,
+        "Likely safe": 0.0489,
+        "Suspicious": 0.9511,
+        "Likely phishing": 0.0
+      }
+    }
+  }
+}

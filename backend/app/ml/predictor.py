@@ -12,7 +12,7 @@ from transformers import (
 MODEL_DIRECTORY = (
     Path(__file__).parent
     / "models"
-    / "urlbert_vonpower_full"
+    / "urlbert_combined_v2"
 )
 
 tokenizer = AutoTokenizer.from_pretrained(
