@@ -106,3 +106,17 @@ def test_typosquatting_domain_is_detected():
     assert result["score"] == 60
     assert result["domain"] == "rnicrosoft.com"
     assert result["similar_domain"] == "microsoft.com"
+
+def test_malformed_urls_do_not_raise():
+    for url in [
+        "http://[invalid-ipv6/login",
+        "http://example.com:99999/",
+        "http://example.com:port/",
+    ]:
+        result = check_reputation(url)
+
+        assert result["status"] in {
+            "unknown",
+            "suspicious",
+            "popular",
+        }

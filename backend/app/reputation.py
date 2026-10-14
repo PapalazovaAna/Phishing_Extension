@@ -49,16 +49,23 @@ def extract_registered_domain(url: str) -> str | None:
 
 
 def normalize_url(url: str) -> str:
-    parsed_url = urlparse(url.strip())
+    fallback = url.strip().lower().rstrip("/")
 
-    if not parsed_url.scheme or not parsed_url.netloc:
-        return url.strip().lower().rstrip("/")
+    try:
+        parsed_url = urlparse(url.strip())
 
-    hostname = parsed_url.hostname.lower()
+        if not parsed_url.scheme or not parsed_url.netloc:
+            return fallback
 
-    port = ""
-    if parsed_url.port:
-        port = f":{parsed_url.port}"
+        hostname = (parsed_url.hostname or "").lower()
+
+        port = ""
+        if parsed_url.port:
+            port = f":{parsed_url.port}"
+
+    # Malformed URLs, e.g. an invalid IPv6 host or port.
+    except ValueError:
+        return fallback
 
     path = parsed_url.path.rstrip("/")
 

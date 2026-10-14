@@ -164,3 +164,13 @@ def test_dom_indicators_increase_risk_for_unknown_domain():
         indicator.startswith("DOM:")
         for indicator in result["indicators"]
     )
+
+def test_malformed_url_does_not_return_server_error():
+    response = client.post(
+        "/analyze",
+        json=create_request(
+            url="http://[invalid-ipv6/login"
+        )
+    )
+
+    assert response.status_code == 200
