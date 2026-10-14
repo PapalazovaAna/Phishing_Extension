@@ -5,3 +5,7 @@ __pycache__/
 *.pyo
 .env
 backend/app/ml/data/
+*.joblib
+*.pt
+*predictions.csv
+**/.cache/
