@@ -3,12 +3,14 @@
 By default this evaluates the deployed model through the same
 chunking and logit aggregation used by app/ml/predictor.py.
 Pass --model base to evaluate the original pre-trained
-CrabInHoney model for comparison.
+CrabInHoney model for comparison, or --model-dir to evaluate
+any other local model (for example a newly trained one).
 
 Run from the backend directory:
 
     python -m ml.evaluate_urlbert_vonpower
     python -m ml.evaluate_urlbert_vonpower --model base
+    python -m ml.evaluate_urlbert_vonpower --model-dir app/ml/models/urlbert_combined_v2
 """
 
 from pathlib import Path
@@ -131,12 +133,43 @@ def select_balanced_subset(urls, labels, max_per_class):
     )
 
 
-def load_model(model_choice):
+def no_preprocessing(url):
+    return url
+
+
+def load_model(model_choice, model_dir=None):
+    """Returns the model, tokenizer, a name for the results and
+    the URL preprocessing function of the model."""
+
+    if model_dir:
+        model_dir = Path(model_dir).resolve()
+        preprocessing = predictor.load_preprocessing(model_dir)
+
+        tokenizer = AutoTokenizer.from_pretrained(
+            str(model_dir),
+            local_files_only=True,
+        )
+
+        model = AutoModelForSequenceClassification.from_pretrained(
+            str(model_dir),
+            local_files_only=True,
+        )
+
+        model.eval()
+
+        return (
+            model,
+            tokenizer,
+            str(model_dir),
+            lambda url: predictor.preprocess_url(url, preprocessing),
+        )
+
     if model_choice == "deployed":
         return (
             predictor.model,
             predictor.tokenizer,
             str(predictor.MODEL_DIRECTORY),
+            predictor.preprocess_url,
         )
 
     tokenizer = AutoTokenizer.from_pretrained(
@@ -149,7 +182,15 @@ def load_model(model_choice):
 
     model.eval()
 
-    return model, tokenizer, BASE_MODEL_NAME
+    return model, tokenizer, BASE_MODEL_NAME, no_preprocessing
+
+
+def model_label(model_choice, model_dir=None):
+    # Used in the names of the result files.
+    if model_dir:
+        return Path(model_dir).resolve().name.removeprefix("urlbert_")
+
+    return model_choice
 
 
 def predict_probabilities(
@@ -157,6 +198,7 @@ def predict_probabilities(
     model,
     tokenizer,
     batch_size,
+    preprocess=no_preprocessing,
 ):
     max_length = int(
         model.config.max_position_embeddings
@@ -170,7 +212,7 @@ def predict_probabilities(
 
         chunked = [
             predictor.create_url_chunks(
-                url,
+                preprocess(url),
                 url_tokenizer=tokenizer,
                 max_length=max_length,
             )
@@ -318,6 +360,7 @@ def evaluate_scheme_robustness(
     model,
     tokenizer,
     batch_size,
+    preprocess=no_preprocessing,
 ):
     """Re-score URLs with the scheme swapped.
 
@@ -366,6 +409,7 @@ def evaluate_scheme_robustness(
             model,
             tokenizer,
             batch_size,
+            preprocess,
         )
 
         original_probabilities = probabilities[indices]
@@ -452,6 +496,10 @@ def main():
         default="deployed",
     )
     parser.add_argument(
+        "--model-dir",
+        help="Evaluate a model from this directory instead.",
+    )
+    parser.add_argument(
         "--split",
         choices=["test", "val"],
         default="test",
@@ -499,7 +547,10 @@ def main():
         [len(url) >= DATASET_URL_WIDTH for url in urls]
     )
 
-    model, tokenizer, model_name = load_model(args.model)
+    model, tokenizer, model_name, preprocess = load_model(
+        args.model,
+        args.model_dir,
+    )
 
     print(f"\nModel: {model_name}")
     print(f"Scoring {len(urls)} {args.split} URLs...")
@@ -509,6 +560,7 @@ def main():
         model,
         tokenizer,
         args.batch_size,
+        preprocess,
     )
 
     results = {
@@ -543,6 +595,7 @@ def main():
                 model,
                 tokenizer,
                 args.batch_size,
+                preprocess,
             )
         )
 
@@ -554,7 +607,9 @@ def main():
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    file_stem = f"urlbert_{args.model}_vonpower_{args.split}"
+    label = model_label(args.model, args.model_dir)
+
+    file_stem = f"urlbert_{label}_vonpower_{args.split}"
 
     results_path = RESULTS_DIR / f"{file_stem}.json"
 

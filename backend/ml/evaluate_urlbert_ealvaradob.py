@@ -4,6 +4,10 @@ The model was fine-tuned on the vonpower dataset (2018). This
 script measures how well it generalises to the ealvaradob
 phishing dataset, which was collected from different sources.
 
+The dataset has no official split. The test split is selected by
+a hash of the URL, the same way as in train_urlbert_combined.ipynb,
+so models trained with that notebook never saw these URLs.
+
 Most legitimate URLs in ealvaradob have no scheme, while many
 phishing URLs use https://. To prevent the scheme from deciding
 the result, every URL is rewritten to the same scheme (--scheme).
@@ -14,10 +18,12 @@ Run from the backend directory:
     python -m ml.download_ealvaradob_dataset
     python -m ml.evaluate_urlbert_ealvaradob --scheme https
     python -m ml.evaluate_urlbert_ealvaradob --scheme http
+    python -m ml.evaluate_urlbert_ealvaradob --model-dir app/ml/models/urlbert_combined_v2
 """
 
 from pathlib import Path
 import argparse
+import hashlib
 import json
 
 import dill
@@ -29,6 +35,7 @@ from ml.evaluate_urlbert_vonpower import (
     compute_metrics,
     load_model,
     load_split,
+    model_label,
     predict_probabilities,
     print_metrics,
     save_predictions,
@@ -48,9 +55,25 @@ DATASET_PATH = (
 )
 
 
+def ealvaradob_split(url):
+    # Must match ealvaradob_split in train_urlbert_combined.ipynb.
+    bucket = int(
+        hashlib.md5(url.encode("utf-8")).hexdigest(),
+        16,
+    ) % 10
+
+    if bucket == 0:
+        return "test"
+
+    if bucket == 1:
+        return "val"
+
+    return "train"
+
+
 def strip_scheme(url):
     for scheme in ("https://", "http://"):
-        if url.startswith(scheme):
+        if url.lower().startswith(scheme):
             return url[len(scheme):]
 
     return url
@@ -91,6 +114,15 @@ def main():
         default="deployed",
     )
     parser.add_argument(
+        "--model-dir",
+        help="Evaluate a model from this directory instead.",
+    )
+    parser.add_argument(
+        "--split",
+        choices=["test", "val"],
+        default="test",
+    )
+    parser.add_argument(
         "--scheme",
         choices=["https", "http"],
         default="https",
@@ -99,8 +131,8 @@ def main():
     parser.add_argument(
         "--max-per-class",
         type=int,
-        default=20_000,
-        help="Balanced subsample size per class, 0 = whole dataset.",
+        default=0,
+        help="Balanced subsample size per class, 0 = whole split.",
     )
     parser.add_argument(
         "--batch-size",
@@ -129,6 +161,7 @@ def main():
         for url in dict.fromkeys(urls)
         if url
         and len(url_labels[url]) == 1
+        and ealvaradob_split(url) == args.split
         and url not in train_urls
     ]
 
@@ -136,8 +169,9 @@ def main():
     labels = np.array([label for _, label in kept])
 
     print(
-        f"Records: {original_count}, after removing duplicates, "
-        f"conflicting labels and vonpower training URLs: {len(urls)}"
+        f"Records: {original_count}, {args.split} split without "
+        f"duplicates, conflicting labels and vonpower training "
+        f"URLs: {len(urls)}"
     )
 
     urls, labels = select_balanced_subset(
@@ -148,7 +182,10 @@ def main():
 
     urls = [f"{args.scheme}://{url}" for url in urls]
 
-    model, tokenizer, model_name = load_model(args.model)
+    model, tokenizer, model_name, preprocess = load_model(
+        args.model,
+        args.model_dir,
+    )
 
     print(f"\nModel: {model_name}")
     print(f"Scoring {len(urls)} URLs with {args.scheme}://...")
@@ -158,11 +195,13 @@ def main():
         model,
         tokenizer,
         args.batch_size,
+        preprocess,
     )
 
     results = {
         "model": model_name,
         "dataset": "ealvaradob/phishing-dataset urls.json",
+        "split": args.split,
         "scheme": args.scheme,
         "max_per_class": args.max_per_class,
         "records_after_filtering": len(kept),
@@ -176,7 +215,11 @@ def main():
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    file_stem = f"urlbert_{args.model}_ealvaradob_{args.scheme}"
+    label = model_label(args.model, args.model_dir)
+
+    file_stem = (
+        f"urlbert_{label}_ealvaradob_{args.split}_{args.scheme}"
+    )
 
     results_path = RESULTS_DIR / f"{file_stem}.json"
 

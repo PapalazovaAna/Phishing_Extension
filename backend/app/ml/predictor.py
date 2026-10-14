@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,36 @@ CHUNK_OVERLAP = 16
 MAX_LENGTH = int(
     model.config.max_position_embeddings
 )
+
+
+def load_preprocessing(model_directory: Path) -> dict[str, Any]:
+    # Newer models describe their input preprocessing in
+    # preprocessing.json, older models have no such file.
+    preprocessing_file = model_directory / "preprocessing.json"
+
+    if not preprocessing_file.exists():
+        return {}
+
+    return json.loads(
+        preprocessing_file.read_text(encoding="utf-8")
+    )
+
+
+PREPROCESSING = load_preprocessing(MODEL_DIRECTORY)
+
+
+def preprocess_url(
+    url: str,
+    preprocessing: dict[str, Any] = PREPROCESSING,
+) -> str:
+    url = url.strip()
+
+    if preprocessing.get("strip_scheme"):
+        for scheme in ("https://", "http://"):
+            if url.lower().startswith(scheme):
+                return url[len(scheme):]
+
+    return url
 
 
 def classify_probability(
@@ -126,7 +157,7 @@ def create_url_chunks(
 
 def predict_probability(url: str) -> float:
     input_ids, attention_masks = (
-        create_url_chunks(url)
+        create_url_chunks(preprocess_url(url))
     )
 
     with torch.no_grad():

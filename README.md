@@ -78,6 +78,7 @@ backend/
     ml/models/urlbert_vonpower_full/   fine-tuned model
   ml/                     training, evaluation and dataset scripts
     train_urlbert_vonpower.ipynb       fine-tuning notebook (Google Colab)
+    train_urlbert_combined.ipynb       second model: vonpower + ealvaradob, no scheme
     evaluate_urlbert_vonpower.py       evaluation on the held-out test split
     evaluate_urlbert_ealvaradob.py     evaluation on an independent dataset
     results/              evaluation metrics (JSON)
@@ -160,23 +161,26 @@ python -m ml.evaluate_urlbert_ealvaradob --scheme https
 The results are the same on the 144,699 test URLs that do not appear in
 the training data (F1 0.9877).
 
-**ealvaradob dataset** (independent dataset, balanced sample of 40,000
-URLs that do not appear in the vonpower training data, threshold 0.5).
-Most legitimate URLs in this dataset have no scheme, so every URL was
-rewritten to the same scheme to keep the scheme from deciding the result:
+**ealvaradob dataset** (independent dataset, threshold 0.5). The dataset
+has no official split, so 10% of the URLs are selected as test split by a
+hash of the URL (76,304 URLs after removing duplicates and URLs from the
+vonpower training data; the same split is used by
+`train_urlbert_combined.ipynb`). Most legitimate URLs in this dataset have
+no scheme, so every URL was rewritten to the same scheme to keep the scheme
+from deciding the result:
 
 | Model | Scheme | ROC-AUC | Precision | Recall | F1 | False positive rate |
 |---|---|---|---|---|---|---|
-| Fine-tuned model | `https://` | 0.9553 | 0.935 | 0.739 | 0.825 | 5.2% |
-| Fine-tuned model | `http://` | 0.9506 | 0.817 | 0.951 | 0.879 | 21.3% |
-| Base model* | `https://` | 0.9877 | 0.904 | 0.963 | 0.932 | 10.2% |
-| Base model* | `http://` | 0.9737 | 0.890 | 0.911 | 0.900 | 11.3% |
+| Fine-tuned model | `https://` | 0.9555 | 0.918 | 0.740 | 0.820 | 5.0% |
+| Fine-tuned model | `http://` | 0.9506 | 0.773 | 0.950 | 0.852 | 21.1% |
+| Base model* | `https://` | 0.9873 | 0.878 | 0.960 | 0.917 | 10.1% |
+| Base model* | `http://` | 0.9735 | 0.864 | 0.908 | 0.885 | 10.8% |
 
 \* The base model was trained on this dataset, so its results here are
 not an independent evaluation. In the same way, the fine-tuned model is
 evaluated on its own distribution in the vonpower table. Each model is
 best on the data it was trained on; on the other dataset both reach an
-F1 of about 0.83 to 0.88.
+F1 of about 0.82 to 0.89.
 
 For the fine-tuned model, the `https://` row is the realistic one,
 because browsers mostly visit HTTPS pages: it detects about three out of
@@ -193,7 +197,7 @@ confirms the scheme bias described below.
   phishing pages today use HTTPS, so the real-world recall of the model
   alone is lower than on the test split. The reputation, typosquatting
   and DOM signals compensate for this.
-- On an independent dataset the model reaches an F1 of 0.83 (`https://`)
+- On an independent dataset the model reaches an F1 of 0.82 (`https://`)
   instead of 0.99 on its own test split, so it generalises only partly
   to phishing URLs from other sources. Training on several datasets and
   randomising the scheme during training would likely reduce both
