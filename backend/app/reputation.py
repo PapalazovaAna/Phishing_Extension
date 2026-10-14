@@ -1,8 +1,10 @@
 from functools import lru_cache
 from pathlib import Path
-import tldextract
 from urllib.parse import urlparse
-from app.typosquatting import find_similar_popular_domain
+
+import tldextract
+
+from app.typosquatting import TyposquattingIndex
 
 
 DATA_DIR = Path(__file__).parent / "reputation_data"
@@ -16,15 +18,24 @@ domain_extractor = tldextract.TLDExtract(
 )
 
 
+def extract_hostname(url: str) -> str | None:
+    try:
+        hostname = urlparse(url).hostname
+    except ValueError:
+        return None
+
+    if not hostname:
+        return None
+
+    return hostname.lower().strip(".")
+
+
 def extract_registered_domain(url: str) -> str | None:
     try:
-        parsed_url = urlparse(url)
-        hostname = parsed_url.hostname
+        hostname = extract_hostname(url)
 
         if not hostname:
             return None
-
-        hostname = hostname.lower().strip(".")
 
         extracted = domain_extractor(hostname)
 
@@ -77,8 +88,37 @@ def _read_lines(file_path: Path) -> set[str]:
 
 
 @lru_cache(maxsize=1)
+def load_ranked_popular_domains() -> list[str]:
+    # The file is in Tranco rank order, most popular first.
+    if not POPULAR_DOMAINS_FILE.exists():
+        return []
+
+    return [
+        line.strip().lower()
+        for line in POPULAR_DOMAINS_FILE.read_text(
+            encoding="utf-8",
+            errors="ignore",
+        ).splitlines()
+        if line.strip()
+    ]
+
+
+@lru_cache(maxsize=1)
 def load_popular_domains() -> set[str]:
-    return _read_lines(POPULAR_DOMAINS_FILE)
+    return set(load_ranked_popular_domains())
+
+
+@lru_cache(maxsize=1)
+def load_typosquatting_index() -> TyposquattingIndex:
+    return TyposquattingIndex(load_ranked_popular_domains())
+
+
+def load_reputation_data() -> None:
+    """Load all lists up front so the first request is not slow."""
+
+    load_malicious_urls()
+    load_popular_domains()
+    load_typosquatting_index()
 
 
 @lru_cache(maxsize=1)
@@ -118,22 +158,20 @@ def check_reputation(url: str) -> dict:
             ),
         }
 
-    similar_domain = find_similar_popular_domain(
+    typosquatting_match = load_typosquatting_index().find(
         domain,
-        popular_domains,
+        hostname=extract_hostname(url),
     )
 
-    if similar_domain:
+    if typosquatting_match:
         return {
             "status": "suspicious",
             "score": 60,
             "source": "Tranco similarity analysis",
             "domain": domain,
-            "similar_domain": similar_domain,
-            "indicator": (
-                f"The domain resembles the popular domain "
-                f"'{similar_domain}', but is not the same domain."
-            ),
+            "similar_domain": typosquatting_match.similar_domain,
+            "technique": typosquatting_match.technique,
+            "indicator": typosquatting_match.description,
         }
 
     if domain in popular_domains:

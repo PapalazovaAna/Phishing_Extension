@@ -97,8 +97,10 @@ def test_typosquatting_domain_is_suspicious():
     assert result["score"] >= 40
     assert result["classification"] == "Suspicious"
 
+    assert result["reputation"]["similar_domain"] == "microsoft.com"
     assert any(
-        "resembles" in indicator.lower()
+        indicator.startswith("Reputation:")
+        and "microsoft.com" in indicator
         for indicator in result["indicators"]
     )
 
