@@ -119,6 +119,23 @@ Load the extension:
 
 The extension expects the backend at `http://127.0.0.1:8000`.
 
+### Demo
+
+[`demo/secure-login/verify-account.html`](demo/secure-login/verify-account.html)
+is a fake login page of a made-up bank for showing the extension without
+opening real phishing sites. Its form never sends data. The extension
+ignores `localhost` and `127.0.0.1`, so the page is served on `127.0.0.2`,
+which is also the local computer:
+
+```bash
+python -m http.server 8080 --bind 127.0.0.2 --directory demo
+```
+
+With the backend running, open
+`http://127.0.0.2:8080/secure-login/verify-account.html`. The warning page
+appears after loading, and the popup shows a score of 77 (*Likely
+phishing*) with all URL, ML and DOM indicators.
+
 ### Tests
 
 ```bash
