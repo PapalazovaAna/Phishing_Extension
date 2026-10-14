@@ -1,0 +1,53 @@
+{
+  "model": "CrabInHoney/urlbert-tiny-v4-phishing-classifier",
+  "dataset": "ealvaradob/phishing-dataset urls.json",
+  "scheme": "https",
+  "max_per_class": 20000,
+  "records_after_filtering": 762119,
+  "all": {
+    "count": 40000,
+    "legitimate": 20000,
+    "phishing": 20000,
+    "roc_auc": 0.9877,
+    "thresholds": {
+      "0.50": {
+        "accuracy": 0.9302,
+        "precision": 0.9041,
+        "recall": 0.9625,
+        "f1": 0.9324,
+        "false_positive_rate": 0.1022,
+        "confusion_matrix": {
+          "tn": 17957,
+          "fp": 2043,
+          "fn": 750,
+          "tp": 19250
+        }
+      },
+      "0.70": {
+        "accuracy": 0.941,
+        "precision": 0.9345,
+        "recall": 0.9485,
+        "f1": 0.9415,
+        "false_positive_rate": 0.0664,
+        "confusion_matrix": {
+          "tn": 18671,
+          "fp": 1329,
+          "fn": 1030,
+          "tp": 18970
+        }
+      }
+    },
+    "predictor_tiers": {
+      "legitimate": {
+        "Likely safe": 17649,
+        "Suspicious": 1022,
+        "Likely phishing": 1329
+      },
+      "phishing": {
+        "Likely safe": 647,
+        "Suspicious": 383,
+        "Likely phishing": 18970
+      }
+    }
+  }
+}
