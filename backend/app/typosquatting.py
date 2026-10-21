@@ -205,20 +205,38 @@ def is_one_edit_apart(first: str, second: str) -> bool:
     return shorter in single_deletions(longer)
 
 
-class TyposquattingIndex:
-    def __init__(self, ranked_popular_domains: list[str]):
-        self.popular_domains = set(ranked_popular_domains)
+def normalize_domain(domain: str) -> str:
+    label, suffix = split_domain(domain)
+    normalized_label = normalize_domain_label(label)
 
-        # (suffix, normalized label) -> most popular domain
-        self.lookalike_index: dict[tuple[str, str], str] = {}
+    return f"{normalized_label}.{suffix}" if suffix else normalized_label
+
+
+class TyposquattingIndex:
+    def __init__(
+        self,
+        ranked_popular_domains: list[str],
+        popular_domains: set[str] | None = None,
+    ):
+        # The set can be shared with the reputation module, so the
+        # million popular domains are kept in memory only once.
+        self.popular_domains = (
+            popular_domains
+            if popular_domains is not None
+            else set(ranked_popular_domains)
+        )
+
+        # Most popular domains are unchanged by normalize_domain, so a
+        # look-alike of them is found directly in popular_domains. Only
+        # domains that change (e.g. "1und1.de") need an extra entry:
+        # normalized domain -> most popular original domain.
+        self.normalized_variants: dict[str, str] = {}
 
         for domain in ranked_popular_domains:
-            label, suffix = split_domain(domain)
+            normalized = normalize_domain(domain)
 
-            self.lookalike_index.setdefault(
-                (suffix, normalize_domain_label(label)),
-                domain,
-            )
+            if normalized != domain:
+                self.normalized_variants.setdefault(normalized, domain)
 
         # (suffix, label with one character removed) -> brands.
         # Two labels one edit apart always share such a key
@@ -270,9 +288,16 @@ class TyposquattingIndex:
         suffix: str,
         domain: str,
     ) -> TyposquattingMatch | None:
-        similar_domain = self.lookalike_index.get(
-            (suffix, normalize_domain_label(label))
+        normalized = (
+            f"{normalize_domain_label(label)}.{suffix}"
+            if suffix
+            else normalize_domain_label(label)
         )
+
+        if normalized in self.popular_domains:
+            similar_domain = normalized
+        else:
+            similar_domain = self.normalized_variants.get(normalized)
 
         if similar_domain and similar_domain != domain:
             return TyposquattingMatch(

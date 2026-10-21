@@ -4,8 +4,11 @@ __pycache__/
 *.py[cod]
 *.pyo
 .env
-backend/app/ml/data/
+research/data/
 *.joblib
 *.pt
 *predictions.csv
 **/.cache/
+
+# Extension package for the Chrome Web Store
+*.zip

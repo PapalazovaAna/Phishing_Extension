@@ -1,15 +1,9 @@
-from pathlib import Path
+from research import DATA_DIR
 
 from huggingface_hub import hf_hub_download
 
 
-OUTPUT_DIR = (
-    Path(__file__).resolve().parents[1]
-    / "app"
-    / "ml"
-    / "data"
-    / "ealvaradob"
-)
+OUTPUT_DIR = DATA_DIR / "ealvaradob"
 
 OUTPUT_DIR.mkdir(
     parents=True,

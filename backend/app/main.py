@@ -1,11 +1,12 @@
+import os
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from app.ml.predictor import predict_url
+from app.predictor import predict_url
 from app.reputation import (
     check_reputation,
     load_reputation_data,
@@ -33,22 +34,46 @@ app = FastAPI(
 )
 
 
+# Chrome extensions with host permissions are not restricted by
+# CORS, so this only decides which web pages may call the API from
+# a browser. By default only Chrome extensions are allowed; a
+# comma-separated list in ALLOWED_ORIGINS replaces that.
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=(
+        None if ALLOWED_ORIGINS else r"chrome-extension://[a-p]{32}"
+    ),
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
+
+
+# Limits so that a public server cannot be sent huge requests.
+MAX_URL_LENGTH = 8192
+MAX_INDICATORS = 50
+MAX_INDICATOR_LENGTH = 500
+
+Indicator = Annotated[str, Field(max_length=MAX_INDICATOR_LENGTH)]
 
 
 class AnalysisPart(BaseModel):
     score: int = Field(default=0, ge=0, le=100)
-    indicators: list[str] = Field(default_factory=list)
+    indicators: list[Indicator] = Field(
+        default_factory=list,
+        max_length=MAX_INDICATORS,
+    )
 
 
 class AnalyzeRequest(BaseModel):
-    url: str
+    url: str = Field(min_length=1, max_length=MAX_URL_LENGTH)
     url_analysis: AnalysisPart
     dom: AnalysisPart
 

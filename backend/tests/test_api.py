@@ -174,3 +174,37 @@ def test_malformed_url_does_not_return_server_error():
     )
 
     assert response.status_code == 200
+
+
+def test_too_long_url_is_rejected():
+    response = client.post(
+        "/analyze",
+        json=create_request(
+            url="https://example.com/" + "a" * 10_000
+        )
+    )
+
+    assert response.status_code == 422
+
+
+def test_cors_allows_chrome_extensions_only():
+    extension_origin = "chrome-extension://" + "a" * 32
+
+    allowed = client.options(
+        "/analyze",
+        headers={
+            "Origin": extension_origin,
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+
+    blocked = client.options(
+        "/analyze",
+        headers={
+            "Origin": "https://some-website.example",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+
+    assert allowed.headers.get("access-control-allow-origin") == extension_origin
+    assert "access-control-allow-origin" not in blocked.headers

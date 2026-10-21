@@ -1,16 +1,9 @@
-from pathlib import Path
+from research import DATA_DIR
 import json
 from collections import Counter
 
 
-DATASET_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "app"
-    / "ml"
-    / "data"
-    / "ealvaradob"
-    / "urls.json"
-)
+DATASET_PATH = DATA_DIR / "ealvaradob" / "urls.json"
 
 
 def main():

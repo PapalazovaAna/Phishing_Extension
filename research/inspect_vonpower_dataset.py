@@ -1,16 +1,10 @@
-from pathlib import Path
+from research import DATA_DIR
 
 import dill
 import numpy as np
 
 
-DATASET_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "app"
-    / "ml"
-    / "data"
-    / "vonDataset20180426.dill"
-)
+DATASET_PATH = DATA_DIR / "vonDataset20180426.dill"
 
 
 def describe(name, value):

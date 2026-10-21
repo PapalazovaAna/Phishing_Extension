@@ -7,14 +7,25 @@ import tldextract
 from app.typosquatting import TyposquattingIndex
 
 
-DATA_DIR = Path(__file__).parent / "reputation_data"
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 PHISHING_URLS_FILE = DATA_DIR / "phishing_urls.txt"
 POPULAR_DOMAINS_FILE = DATA_DIR / "popular_domains.txt"
+PUBLIC_SUFFIX_FILE = DATA_DIR / "public_suffix_list.dat"
 
 
+# The public suffix list is read from the data directory instead of
+# being downloaded at startup. Without the file, tldextract uses the
+# older snapshot bundled with the package.
 domain_extractor = tldextract.TLDExtract(
-    include_psl_private_domains=True
+    include_psl_private_domains=True,
+    suffix_list_urls=(
+        (PUBLIC_SUFFIX_FILE.as_uri(),)
+        if PUBLIC_SUFFIX_FILE.exists()
+        else ()
+    ),
+    cache_dir=None,
+    fallback_to_snapshot=True,
 )
 
 
@@ -117,7 +128,10 @@ def load_popular_domains() -> set[str]:
 
 @lru_cache(maxsize=1)
 def load_typosquatting_index() -> TyposquattingIndex:
-    return TyposquattingIndex(load_ranked_popular_domains())
+    return TyposquattingIndex(
+        load_ranked_popular_domains(),
+        load_popular_domains(),
+    )
 
 
 def load_reputation_data() -> None:

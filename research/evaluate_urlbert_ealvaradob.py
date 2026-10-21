@@ -13,15 +13,14 @@ phishing URLs use https://. To prevent the scheme from deciding
 the result, every URL is rewritten to the same scheme (--scheme).
 URLs that also appear in the vonpower training data are removed.
 
-Run from the backend directory:
+Run from the repository root:
 
-    python -m ml.download_ealvaradob_dataset
-    python -m ml.evaluate_urlbert_ealvaradob --scheme https
-    python -m ml.evaluate_urlbert_ealvaradob --scheme http
-    python -m ml.evaluate_urlbert_ealvaradob --model-dir app/ml/models/urlbert_combined_v2
+    python -m research.download_ealvaradob_dataset
+    python -m research.evaluate_urlbert_ealvaradob --scheme https
+    python -m research.evaluate_urlbert_ealvaradob --scheme http
+    python -m research.evaluate_urlbert_ealvaradob --model-dir research/models/urlbert_vonpower_full
 """
 
-from pathlib import Path
 import argparse
 import hashlib
 import json
@@ -29,7 +28,8 @@ import json
 import dill
 import numpy as np
 
-from ml.evaluate_urlbert_vonpower import (
+from research import DATA_DIR
+from research.evaluate_urlbert_vonpower import (
     DATASET_PATH as VONPOWER_PATH,
     RESULTS_DIR,
     compute_metrics,
@@ -43,16 +43,7 @@ from ml.evaluate_urlbert_vonpower import (
 )
 
 
-BASE_DIR = Path(__file__).resolve().parents[1]
-
-DATASET_PATH = (
-    BASE_DIR
-    / "app"
-    / "ml"
-    / "data"
-    / "ealvaradob"
-    / "urls.json"
-)
+DATASET_PATH = DATA_DIR / "ealvaradob" / "urls.json"
 
 
 def ealvaradob_split(url):

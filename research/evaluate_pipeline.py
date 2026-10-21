@@ -9,12 +9,11 @@ The datasets contain only URLs, so the DOM score is 0. This is the
 situation of the automatic check when a page is opened, which also
 sends no DOM data.
 
-Run from the backend directory, after the evaluation scripts:
+Run from the repository root, after the evaluation scripts:
 
-    python -m ml.evaluate_pipeline
+    python -m research.evaluate_pipeline
 """
 
-from pathlib import Path
 import csv
 import json
 import re
@@ -30,7 +29,7 @@ from app.scoring import (
     combine_scores,
     should_block,
 )
-from ml.evaluate_urlbert_vonpower import RESULTS_DIR
+from research import RESULTS_DIR
 
 
 # Prediction files to evaluate: (model, dataset) -> file name.

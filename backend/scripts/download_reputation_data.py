@@ -5,13 +5,15 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 
-DATA_DIR = Path(__file__).parent / "reputation_data"
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 OPENPHISH_URL = (
     "https://raw.githubusercontent.com/openphish/public_feed/main/feed.txt"
 )
 
 TRANCO_URL = "https://tranco-list.eu/top-1m.csv.zip"
+
+PUBLIC_SUFFIX_URL = "https://publicsuffix.org/list/public_suffix_list.dat"
 
 
 def download_file(url: str) -> bytes:
@@ -100,6 +102,18 @@ def download_tranco() -> None:
     )
 
 
+def download_public_suffix_list() -> None:
+    # Used by tldextract to find the registered domain of a host.
+    print("Downloading public suffix list...")
+
+    content = download_file(PUBLIC_SUFFIX_URL)
+
+    output_path = DATA_DIR / "public_suffix_list.dat"
+    output_path.write_bytes(content)
+
+    print(f"Saved public suffix list to {output_path}")
+
+
 if __name__ == "__main__":
     DATA_DIR.mkdir(
         parents=True,
@@ -108,5 +122,6 @@ if __name__ == "__main__":
 
     download_openphish()
     download_tranco()
+    download_public_suffix_list()
 
     print("Reputation data download completed.")

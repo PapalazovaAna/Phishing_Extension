@@ -1,0 +1,19 @@
+# Render Blueprint for the backend (https://render.com/docs/blueprint-spec).
+# Only the backend directory is deployed, the research files are not needed.
+services:
+  - type: web
+    name: phishing-risk-detector
+    runtime: python
+    plan: free
+    rootDir: backend
+    # The reputation lists are refreshed on every deploy. If a download
+    # fails, the copies from the repository are used.
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      (python scripts/download_reputation_data.py ||
+      echo "Download failed, using the reputation data from the repository")
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13"

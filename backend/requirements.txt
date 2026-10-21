@@ -1,7 +1,6 @@
 fastapi==0.141.1
 uvicorn[standard]==0.52.4
 tldextract==5.3.2
-torch==2.14.0
-transformers==5.17.0
-pytest==9.1.1
-httpx==0.28.1
+onnxruntime==1.30.0
+tokenizers==0.23.2
+numpy==2.5.3

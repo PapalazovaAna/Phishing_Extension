@@ -1,6 +1,6 @@
 import json
 
-from app.ml.predictor import (
+from app.predictor import (
     load_preprocessing,
     preprocess_url,
 )

@@ -1,16 +1,16 @@
 """Evaluate the URLBERT model on the held-out vonpower test split.
 
 By default this evaluates the deployed model through the same
-chunking and logit aggregation used by app/ml/predictor.py.
+chunking and logit aggregation used by backend/app/predictor.py.
 Pass --model base to evaluate the original pre-trained
 CrabInHoney model for comparison, or --model-dir to evaluate
 any other local model (for example a newly trained one).
 
-Run from the backend directory:
+Run from the repository root:
 
-    python -m ml.evaluate_urlbert_vonpower
-    python -m ml.evaluate_urlbert_vonpower --model base
-    python -m ml.evaluate_urlbert_vonpower --model-dir app/ml/models/urlbert_combined_v2
+    python -m research.evaluate_urlbert_vonpower
+    python -m research.evaluate_urlbert_vonpower --model base
+    python -m research.evaluate_urlbert_vonpower --model-dir research/models/urlbert_vonpower_full
 """
 
 from pathlib import Path
@@ -35,7 +35,8 @@ from transformers import (
     AutoTokenizer,
 )
 
-from app.ml import predictor
+from research import DATA_DIR, RESULTS_DIR
+from app import predictor
 
 
 BASE_MODEL_NAME = (
@@ -43,17 +44,7 @@ BASE_MODEL_NAME = (
     "urlbert-tiny-v4-phishing-classifier"
 )
 
-BASE_DIR = Path(__file__).resolve().parents[1]
-
-DATASET_PATH = (
-    BASE_DIR
-    / "app"
-    / "ml"
-    / "data"
-    / "vonDataset20180426.dill"
-)
-
-RESULTS_DIR = BASE_DIR / "ml" / "results"
+DATASET_PATH = DATA_DIR / "vonDataset20180426.dill"
 
 # 0.50 is the standard decision threshold, 0.70 is the
 # "Likely phishing" threshold used by the predictor.
@@ -139,7 +130,11 @@ def no_preprocessing(url):
 
 def load_model(model_choice, model_dir=None):
     """Returns the model, tokenizer, a name for the results and
-    the URL preprocessing function of the model."""
+    the URL preprocessing function of the model.
+
+    For the deployed model, model and tokenizer are None: it is
+    evaluated through the ONNX predictor of the backend itself.
+    """
 
     if model_dir:
         model_dir = Path(model_dir).resolve()
@@ -166,8 +161,8 @@ def load_model(model_choice, model_dir=None):
 
     if model_choice == "deployed":
         return (
-            predictor.model,
-            predictor.tokenizer,
+            None,
+            None,
             str(predictor.MODEL_DIRECTORY),
             predictor.preprocess_url,
         )
@@ -190,7 +185,48 @@ def model_label(model_choice, model_dir=None):
     if model_dir:
         return Path(model_dir).resolve().name.removeprefix("urlbert_")
 
+    if model_choice == "deployed":
+        return predictor.MODEL_DIRECTORY.name.removeprefix("urlbert_")
+
     return model_choice
+
+
+def predict_torch_probabilities(urls, model, tokenizer):
+    """PyTorch version of predictor.predict_probabilities, with the
+    same chunking and the same mean of the chunk logits."""
+
+    chunked = [
+        predictor.create_chunks(
+            tokenizer.convert_tokens_to_ids(tokenizer.tokenize(url)),
+            cls_token_id=tokenizer.cls_token_id,
+            sep_token_id=tokenizer.sep_token_id,
+            pad_token_id=tokenizer.pad_token_id or 0,
+            max_length=int(model.config.max_position_embeddings),
+        )
+        for url in urls
+    ]
+
+    with torch.no_grad():
+        logits = model(
+            input_ids=torch.from_numpy(
+                np.concatenate([ids for ids, _ in chunked])
+            ),
+            attention_mask=torch.from_numpy(
+                np.concatenate([mask for _, mask in chunked])
+            ),
+        ).logits
+
+    url_logits = torch.stack(
+        [
+            chunk_logits.mean(dim=0)
+            for chunk_logits in torch.split(
+                logits,
+                [len(ids) for ids, _ in chunked],
+            )
+        ]
+    )
+
+    return torch.softmax(url_logits, dim=1)[:, 1].numpy()
 
 
 def predict_probabilities(
@@ -200,55 +236,25 @@ def predict_probabilities(
     batch_size,
     preprocess=no_preprocessing,
 ):
-    max_length = int(
-        model.config.max_position_embeddings
-    )
-
     probabilities = np.zeros(len(urls))
     start_time = time.time()
 
     for start in range(0, len(urls), batch_size):
         batch_urls = urls[start:start + batch_size]
 
-        chunked = [
-            predictor.create_url_chunks(
-                preprocess(url),
-                url_tokenizer=tokenizer,
-                max_length=max_length,
+        if model is None:
+            # The deployed ONNX model, including its preprocessing.
+            probabilities[start:start + len(batch_urls)] = (
+                predictor.predict_probabilities(batch_urls, batch_size)
             )
-            for url in batch_urls
-        ]
-
-        chunk_counts = [
-            len(input_ids)
-            for input_ids, _ in chunked
-        ]
-
-        with torch.no_grad():
-            logits = model(
-                input_ids=torch.cat(
-                    [input_ids for input_ids, _ in chunked]
-                ),
-                attention_mask=torch.cat(
-                    [mask for _, mask in chunked]
-                ),
-            ).logits
-
-        # Mean logits across the chunks of each URL,
-        # the same aggregation as predictor.predict_probability.
-        url_logits = torch.stack(
-            [
-                chunk_logits.mean(dim=0)
-                for chunk_logits in torch.split(
-                    logits,
-                    chunk_counts,
+        else:
+            probabilities[start:start + len(batch_urls)] = (
+                predict_torch_probabilities(
+                    [preprocess(url) for url in batch_urls],
+                    model,
+                    tokenizer,
                 )
-            ]
-        )
-
-        probabilities[start:start + len(batch_urls)] = (
-            torch.softmax(url_logits, dim=1)[:, 1].numpy()
-        )
+            )
 
         processed = start + len(batch_urls)
 
