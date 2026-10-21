@@ -1,5 +1,6 @@
-const BACKEND_URL =
-  "http://127.0.0.1:8000/analyze";
+importScripts("config.js");
+
+const ANALYZE_URL = BACKEND_URL + "/analyze";
 
 const activePrechecks = new Set();
 
@@ -22,7 +23,7 @@ function isDevelopmentUrl(url) {
     return (
       parsedUrl.hostname === "localhost" ||
       parsedUrl.hostname === "127.0.0.1" ||
-      parsedUrl.hostname === "::1"
+      parsedUrl.hostname === "[::1]"
     );
   } catch {
     return false;
@@ -114,7 +115,7 @@ async function analyzeWithBackend(url, domData) {
   const urlData = analyzeUrl(url);
 
   const response = await fetch(
-    BACKEND_URL,
+    ANALYZE_URL,
     {
       method: "POST",
       headers: {
@@ -124,7 +125,8 @@ async function analyzeWithBackend(url, domData) {
         url,
         url_analysis: urlData,
         dom: domData
-      })
+      }),
+      signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS)
     }
   );
 
@@ -346,7 +348,9 @@ chrome.runtime.onMessage.addListener(
                   return "URL: " + item;
                 }
               ),
-              "The backend could not be reached.",
+              "The backend could not be reached. If it was not " +
+              "used for a while, the server needs up to a minute " +
+              "to start, please try again.",
               ...domData.indicators.map(
                 function (item) {
                   return "DOM: " + item;
