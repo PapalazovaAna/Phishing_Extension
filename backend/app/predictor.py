@@ -48,16 +48,8 @@ CLS_TOKEN_ID = tokenizer.token_to_id("[CLS]")
 SEP_TOKEN_ID = tokenizer.token_to_id("[SEP]")
 PAD_TOKEN_ID = tokenizer.token_to_id("[PAD]") or 0
 
-session_options = onnxruntime.SessionOptions()
-
-# The backend handles one URL at a time, more threads only
-# use more memory on a small server.
-session_options.intra_op_num_threads = 1
-session_options.inter_op_num_threads = 1
-
 session = onnxruntime.InferenceSession(
     str(MODEL_DIRECTORY / "model.onnx"),
-    sess_options=session_options,
     providers=["CPUExecutionProvider"],
 )
 

@@ -66,7 +66,7 @@ least 70. Scores of 70 and above are classified as *Likely phishing*,
 ## Project structure
 
 ```
-backend/                  API server, the only part that is deployed
+backend/                  API server
   app/
     main.py               /analyze and /health endpoints
     scoring.py            combination of the scores
@@ -78,7 +78,6 @@ backend/                  API server, the only part that is deployed
   scripts/download_reputation_data.py
   tests/
 extension/                Chrome extension (Manifest V3)
-  config.js               address of the backend
   icons/
 research/                 training and evaluation of the URL model
   notebooks/              training notebooks (Google Colab)
@@ -86,8 +85,6 @@ research/                 training and evaluation of the URL model
   results/                evaluation metrics (JSON)
   evaluate_*.py, export_onnx.py
 demo/                     offline phishing demo page
-docs/                     deployment guide and privacy policy
-render.yaml               Render configuration for the backend
 ```
 
 The research part has its own [README](research/README.md).
@@ -100,11 +97,8 @@ Requires Python 3.13 or newer and Google Chrome.
 cd backend
 python -m venv .venv
 .venv/Scripts/activate        # Windows, on Linux/macOS: source .venv/bin/activate
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
 ```
-
-`requirements.txt` contains only what the server needs (used by
-Render), `requirements-dev.txt` adds the test packages.
 
 Download the current OpenPhish feed, Tranco list and public suffix list
 (optional, the repository contains a copy):
@@ -121,13 +115,10 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 Load the extension:
 
-1. In `extension/config.js`, set `BACKEND_URL` to `http://127.0.0.1:8000`
-   (the default is the deployed server on Render).
-2. Open `chrome://extensions` and enable *Developer mode*.
-3. Click *Load unpacked* and select the `extension` folder.
+1. Open `chrome://extensions` and enable *Developer mode*.
+2. Click *Load unpacked* and select the `extension` folder.
 
-Deploying the backend to Render and publishing the extension in the
-Chrome Web Store are described in [docs/deployment.md](docs/deployment.md).
+The extension expects the backend at `http://127.0.0.1:8000`.
 
 ### Demo
 
@@ -269,8 +260,8 @@ is opened. Share of URLs classified as *Suspicious* or *Likely phishing*:
   represented by the ealvaradob data.
 - The URL and DOM heuristics are computed in the extension and sent to
   the backend, so their scores are not verified by the backend.
-- The reputation data is a snapshot. On Render it is refreshed with every
-  deploy, locally with `scripts/download_reputation_data.py`.
+- The reputation data is a local snapshot and has to be refreshed with
+  `scripts/download_reputation_data.py`.
 
 ## Data sources
 

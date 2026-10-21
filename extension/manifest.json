@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Phishing Risk Detector",
-  "version": "1.0.0",
-  "description": "Estimates how likely a web page is phishing, using URL, reputation, machine learning and page content analysis.",
+  "version": "0.2.0",
+  "description": "Detects potentially malicious webpages using URL, reputation, machine learning and DOM analysis.",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -30,7 +30,6 @@
     "storage"
   ],
   "host_permissions": [
-    "https://phishing-risk-detector.onrender.com/*",
     "http://127.0.0.1:8000/*"
   ],
   "icons": {

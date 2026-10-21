@@ -9,6 +9,3 @@ research/data/
 *.pt
 *predictions.csv
 **/.cache/
-
-# Extension package for the Chrome Web Store
-*.zip

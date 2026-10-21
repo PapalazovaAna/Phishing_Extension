@@ -1,4 +1,3 @@
-import os
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
@@ -34,29 +33,18 @@ app = FastAPI(
 )
 
 
-# Chrome extensions with host permissions are not restricted by
-# CORS, so this only decides which web pages may call the API from
-# a browser. By default only Chrome extensions are allowed; a
-# comma-separated list in ALLOWED_ORIGINS replaces that.
-ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.environ.get("ALLOWED_ORIGINS", "").split(",")
-    if origin.strip()
-]
-
+# Only Chrome extensions may call the API from a browser, so that
+# web pages cannot send requests to the local backend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=(
-        None if ALLOWED_ORIGINS else r"chrome-extension://[a-p]{32}"
-    ),
+    allow_origin_regex=r"chrome-extension://[a-p]{32}",
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
 
 
-# Limits so that a public server cannot be sent huge requests.
+# Limits for the size of a request.
 MAX_URL_LENGTH = 8192
 MAX_INDICATORS = 50
 MAX_INDICATOR_LENGTH = 500

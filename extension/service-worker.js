@@ -1,6 +1,5 @@
-importScripts("config.js");
-
-const ANALYZE_URL = BACKEND_URL + "/analyze";
+const BACKEND_URL =
+  "http://127.0.0.1:8000/analyze";
 
 const activePrechecks = new Set();
 
@@ -115,7 +114,7 @@ async function analyzeWithBackend(url, domData) {
   const urlData = analyzeUrl(url);
 
   const response = await fetch(
-    ANALYZE_URL,
+    BACKEND_URL,
     {
       method: "POST",
       headers: {
@@ -125,8 +124,7 @@ async function analyzeWithBackend(url, domData) {
         url,
         url_analysis: urlData,
         dom: domData
-      }),
-      signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS)
+      })
     }
   );
 
@@ -348,9 +346,7 @@ chrome.runtime.onMessage.addListener(
                   return "URL: " + item;
                 }
               ),
-              "The backend could not be reached. If it was not " +
-              "used for a while, the server needs up to a minute " +
-              "to start, please try again.",
+              "The backend could not be reached.",
               ...domData.indicators.map(
                 function (item) {
                   return "DOM: " + item;

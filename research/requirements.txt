@@ -1,6 +1,6 @@
 # Packages for the training, evaluation and dataset scripts.
 # The evaluation reuses the backend code, so it needs the backend packages too.
--r ../backend/requirements-dev.txt
+-r ../backend/requirements.txt
 torch==2.14.0
 transformers==5.17.0
 dill==0.4.1

@@ -70,7 +70,7 @@ python -m research.evaluate_urlbert_ealvaradob --scheme http
 python -m research.evaluate_pipeline
 ```
 
-Without options the scripts evaluate the deployed ONNX model. Other models:
+Without options the scripts evaluate the ONNX model the backend uses. Other models:
 
 ```bash
 python -m research.evaluate_urlbert_vonpower --model-dir research/models/urlbert_vonpower_full
