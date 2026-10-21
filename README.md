@@ -24,7 +24,7 @@ flowchart LR
 
     subgraph Backend [FastAPI backend]
         API[main.py<br/>/analyze]
-        ML[ml/predictor.py<br/>URLBERT]
+        ML[predictor.py<br/>URLBERT, ONNX]
         REP[reputation.py<br/>OpenPhish, Tranco]
         TYPO[typosquatting.py]
         SC[scoring.py]
@@ -66,44 +66,51 @@ least 70. Scores of 70 and above are classified as *Likely phishing*,
 ## Project structure
 
 ```
-backend/
-  app/                    runtime code of the API
+backend/                  API server, the only part that is deployed
+  app/
     main.py               /analyze and /health endpoints
     scoring.py            combination of the scores
+    predictor.py          URL model (ONNX Runtime)
     reputation.py         OpenPhish and Tranco lookups
     typosquatting.py      look-alike domain detection
-    reputation_downloader.py
-    reputation_data/      downloaded OpenPhish and Tranco lists
-    ml/predictor.py       URLBERT inference
-    ml/models/urlbert_combined_v2/     current URL model
-    ml/models/urlbert_vonpower_full/   previous URL model (for comparison)
-  ml/                     training, evaluation and dataset scripts
-    train_urlbert_vonpower.ipynb       fine-tuning notebook (Google Colab)
-    train_urlbert_combined.ipynb       second model: vonpower + ealvaradob, no scheme
-    evaluate_urlbert_vonpower.py       evaluation on the held-out test split
-    evaluate_urlbert_ealvaradob.py     evaluation on an independent dataset
-    evaluate_pipeline.py               evaluation of the complete scoring pipeline
-    results/              evaluation metrics (JSON)
+  data/                   OpenPhish, Tranco and public suffix lists
+  models/urlbert_combined_v2/   URL model exported to ONNX
+  scripts/download_reputation_data.py
   tests/
 extension/                Chrome extension (Manifest V3)
+  config.js               address of the backend
+  icons/
+research/                 training and evaluation of the URL model
+  notebooks/              training notebooks (Google Colab)
+  models/                 trained models (PyTorch)
+  results/                evaluation metrics (JSON)
+  evaluate_*.py, export_onnx.py
+demo/                     offline phishing demo page
+docs/                     deployment guide and privacy policy
+render.yaml               Render configuration for the backend
 ```
+
+The research part has its own [README](research/README.md).
 
 ## Setup
 
-Requires Python 3.10 or newer (developed with 3.14) and Google Chrome.
+Requires Python 3.13 or newer and Google Chrome.
 
 ```bash
 cd backend
 python -m venv .venv
 .venv/Scripts/activate        # Windows, on Linux/macOS: source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
-Download the current OpenPhish feed and Tranco list (optional, the
-repository already contains a copy):
+`requirements.txt` contains only what the server needs (used by
+Render), `requirements-dev.txt` adds the test packages.
+
+Download the current OpenPhish feed, Tranco list and public suffix list
+(optional, the repository contains a copy):
 
 ```bash
-python -m app.reputation_downloader
+python scripts/download_reputation_data.py
 ```
 
 Start the backend:
@@ -114,10 +121,13 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 Load the extension:
 
-1. Open `chrome://extensions` and enable *Developer mode*.
-2. Click *Load unpacked* and select the `extension` folder.
+1. In `extension/config.js`, set `BACKEND_URL` to `http://127.0.0.1:8000`
+   (the default is the deployed server on Render).
+2. Open `chrome://extensions` and enable *Developer mode*.
+3. Click *Load unpacked* and select the `extension` folder.
 
-The extension expects the backend at `http://127.0.0.1:8000`.
+Deploying the backend to Render and publishing the extension in the
+Chrome Web Store are described in [docs/deployment.md](docs/deployment.md).
 
 ### Demo
 
@@ -160,18 +170,24 @@ before every prediction (`preprocessing.json` in the model directory), so
 the model cannot use it. URLs from both test sets are excluded from the
 training data. Training took 21 minutes on a free Google Colab T4 GPU and
 is documented in
-[`backend/ml/train_urlbert_combined.ipynb`](backend/ml/train_urlbert_combined.ipynb).
+[`research/notebooks/train_urlbert_combined.ipynb`](research/notebooks/train_urlbert_combined.ipynb).
 
 The model accepts at most 64 tokens. Longer URLs are split into
 overlapping chunks and the logits of all chunks are averaged, both
-during training and in [`predictor.py`](backend/app/ml/predictor.py).
+during training and in [`predictor.py`](backend/app/predictor.py).
+
+The model is trained with PyTorch and exported to ONNX
+([`research/export_onnx.py`](research/export_onnx.py)). The backend runs it
+with ONNX Runtime, which gives the same predictions (largest difference
+of the logits about 10⁻⁶) but needs much less memory: the whole backend
+uses about 260 MB instead of almost 900 MB with PyTorch.
 
 ### Previous model
 
 The first model, `urlbert_vonpower_full`, was the phishing classifier
 [`CrabInHoney/urlbert-tiny-v4-phishing-classifier`](https://huggingface.co/CrabInHoney/urlbert-tiny-v4-phishing-classifier)
 fine-tuned for one epoch on vonpower only
-([`train_urlbert_vonpower.ipynb`](backend/ml/train_urlbert_vonpower.ipynb)).
+([`train_urlbert_vonpower.ipynb`](research/notebooks/train_urlbert_vonpower.ipynb)).
 Its evaluation showed two problems that the second model addresses:
 
 1. In vonpower 97% of the phishing URLs use `http://`, and the model
@@ -183,18 +199,18 @@ Its evaluation showed two problems that the second model addresses:
 
 ### Evaluation
 
-The evaluation scripts need the additional packages from
-`requirements-ml.txt` and the datasets in `backend/app/ml/data/`
-(not part of the repository).
+The evaluation scripts need the packages from `research/requirements.txt`
+and the datasets in `research/data/` (not part of the repository). They
+are run from the repository root; see the [research README](research/README.md).
 
 ```bash
-pip install -r requirements-ml.txt
-python -m ml.download_ealvaradob_dataset
-python -m ml.evaluate_urlbert_vonpower --model-dir app/ml/models/urlbert_combined_v2
-python -m ml.evaluate_urlbert_ealvaradob --model-dir app/ml/models/urlbert_combined_v2
-python -m ml.evaluate_urlbert_vonpower --model-dir app/ml/models/urlbert_vonpower_full
-python -m ml.evaluate_urlbert_ealvaradob --model-dir app/ml/models/urlbert_vonpower_full
-python -m ml.evaluate_pipeline
+pip install -r research/requirements.txt
+python -m research.download_ealvaradob_dataset
+python -m research.evaluate_urlbert_vonpower
+python -m research.evaluate_urlbert_ealvaradob
+python -m research.evaluate_urlbert_vonpower --model-dir research/models/urlbert_vonpower_full
+python -m research.evaluate_urlbert_ealvaradob --model-dir research/models/urlbert_vonpower_full
+python -m research.evaluate_pipeline
 ```
 
 All results are for threshold 0.5. Both test sets were never used for
@@ -224,7 +240,7 @@ With `http://` instead of `https://`, the previous model's false positive
 rate rises from 5.0% to 21.1%, while the current model gives exactly the
 same predictions for both schemes.
 
-**Complete pipeline.** [`evaluate_pipeline.py`](backend/ml/evaluate_pipeline.py)
+**Complete pipeline.** [`evaluate_pipeline.py`](research/evaluate_pipeline.py)
 runs every test URL through the whole backend: URL heuristics (a Python
 port of the extension code), ML model, reputation lists, typosquatting
 and `scoring.py`. The DOM score is 0 because the datasets contain no page
@@ -253,8 +269,8 @@ is opened. Share of URLs classified as *Suspicious* or *Likely phishing*:
   represented by the ealvaradob data.
 - The URL and DOM heuristics are computed in the extension and sent to
   the backend, so their scores are not verified by the backend.
-- The reputation data is a local snapshot and has to be refreshed with
-  `reputation_downloader.py`.
+- The reputation data is a snapshot. On Render it is refreshed with every
+  deploy, locally with `scripts/download_reputation_data.py`.
 
 ## Data sources
 
