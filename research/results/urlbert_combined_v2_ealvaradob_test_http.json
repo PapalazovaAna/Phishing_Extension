@@ -1,5 +1,5 @@
 {
-  "model": "C:\\Users\\Ana\\Desktop\\FINKI\\diplomska\\Phishing_Extension\\backend\\app\\ml\\models\\urlbert_combined_v2",
+  "model": "C:\\Users\\Ana\\Desktop\\FINKI\\diplomska\\Phishing_Extension\\backend\\models\\urlbert_combined_v2",
   "dataset": "ealvaradob/phishing-dataset urls.json",
   "split": "test",
   "scheme": "http",
