@@ -1,18 +1,93 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Phishing Risk Detector</title>
-    <link rel="stylesheet" href="popup.css" />
-  </head>
-  <body>
-    <main class="container">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phishing Risk Detector</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="header">
       <h1>Phishing Risk Detector</h1>
-      <p id="page-url" class="url">Loading current URL...</p>
-      <button id="analyze-button">Analyze page</button>
-      <section id="result" class="result hidden"></section>
-    </main>
-    <script src="popup.js"></script>
-  </body>
+      <p id="page-url" class="page-url">
+        Loading page...
+      </p>
+    </header>
+
+    <p id="loading-message" class="loading-message">
+      Analyzing page...
+    </p>
+
+    <section id="error-section" class="error-section hidden">
+      <p id="error-message"></p>
+    </section>
+
+    <section id="result-section" class="result-section hidden">
+      <section class="score-card">
+        <div id="score-value" class="score-value">
+          0/100
+        </div>
+
+        <div class="score-label">
+          Risk score
+        </div>
+
+        <div class="progress-track">
+          <div id="score-progress" class="progress-bar"></div>
+        </div>
+
+        <div id="classification" class="classification">
+          Likely safe
+        </div>
+      </section>
+
+      <button
+        id="details-toggle"
+        class="details-toggle"
+        type="button"
+      >
+        See details
+      </button>
+
+      <section
+        id="details-panel"
+        class="details-panel hidden"
+      >
+        <section class="details-section">
+          <h2>Analysis components</h2>
+
+          <div class="components-grid">
+            <div class="component-card">
+              <span>URL</span>
+              <strong id="url-score">-</strong>
+            </div>
+
+            <div class="component-card">
+              <span>ML</span>
+              <strong id="ml-score">-</strong>
+            </div>
+
+            <div class="component-card">
+              <span>DOM</span>
+              <strong id="dom-score">-</strong>
+            </div>
+
+            <div class="component-card">
+              <span>Reputation</span>
+              <strong id="reputation-score">-</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="details-section">
+          <h2>Detected indicators</h2>
+          <ul id="indicator-list" class="indicator-list"></ul>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
 </html>

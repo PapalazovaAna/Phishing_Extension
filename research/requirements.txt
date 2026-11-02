@@ -1,0 +1,10 @@
+# Packages for the training, evaluation and dataset scripts.
+# The evaluation reuses the backend code, so it needs the backend packages too.
+-r ../backend/requirements.txt
+torch==2.14.0
+transformers==5.17.0
+dill==0.4.1
+scikit-learn==1.9.0
+huggingface_hub==1.33.0
+onnx==1.23.2
+onnxscript==0.7.2

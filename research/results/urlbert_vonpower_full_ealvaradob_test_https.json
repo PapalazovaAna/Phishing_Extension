@@ -1,0 +1,54 @@
+{
+  "model": "C:\\Users\\Ana\\Desktop\\FINKI\\diplomska\\Phishing_Extension\\backend\\app\\ml\\models\\urlbert_vonpower_full",
+  "dataset": "ealvaradob/phishing-dataset urls.json",
+  "split": "test",
+  "scheme": "https",
+  "max_per_class": 0,
+  "records_after_filtering": 76304,
+  "all": {
+    "count": 76304,
+    "legitimate": 43477,
+    "phishing": 32827,
+    "roc_auc": 0.9555,
+    "thresholds": {
+      "0.50": {
+        "accuracy": 0.8599,
+        "precision": 0.918,
+        "recall": 0.7404,
+        "f1": 0.8197,
+        "false_positive_rate": 0.0499,
+        "confusion_matrix": {
+          "tn": 41307,
+          "fp": 2170,
+          "fn": 8521,
+          "tp": 24306
+        }
+      },
+      "0.70": {
+        "accuracy": 0.8396,
+        "precision": 0.9415,
+        "recall": 0.6687,
+        "f1": 0.782,
+        "false_positive_rate": 0.0314,
+        "confusion_matrix": {
+          "tn": 42112,
+          "fp": 1365,
+          "fn": 10876,
+          "tp": 21951
+        }
+      }
+    },
+    "predictor_tiers": {
+      "legitimate": {
+        "Likely safe": 40747,
+        "Suspicious": 1365,
+        "Likely phishing": 1365
+      },
+      "phishing": {
+        "Likely safe": 7457,
+        "Suspicious": 3419,
+        "Likely phishing": 21951
+      }
+    }
+  }
+}
