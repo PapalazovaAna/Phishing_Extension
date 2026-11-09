@@ -106,7 +106,59 @@ function displayScore(score, riskClass, hasScore) {
   scoreProgress.style.background = color;
 }
 
-function displayIndicators(indicators) {
+// Indicators that are strong signs of phishing on their own.
+const STRONG_INDICATORS = [
+  "The hostname is an IP address.",
+  "A form submits data to another origin."
+];
+
+// Colour level of an indicator: "good" (green), "warning" (orange),
+// "danger" (red) or "neutral" (grey). The level comes from the part of
+// the result the indicator belongs to, shown by its prefix.
+function getIndicatorLevel(indicator, result) {
+  const reputation = result.reputation || {};
+  const ml = result.ml || {};
+
+  if (indicator.startsWith("ML: ")) {
+    if (typeof ml.score !== "number") {
+      return "neutral";
+    }
+
+    // A high model score that was overruled by a popular domain.
+    if (reputation.status === "popular" && ml.score >= 40) {
+      return "warning";
+    }
+
+    if (ml.score >= 70) {
+      return "danger";
+    }
+
+    return ml.score >= 40 ? "warning" : "good";
+  }
+
+  if (indicator.startsWith("Reputation: ")) {
+    const levels = {
+      popular: "good",
+      suspicious: "warning",
+      malicious: "danger"
+    };
+
+    return levels[reputation.status] || "neutral";
+  }
+
+  if (
+    indicator.startsWith("URL: ") ||
+    indicator.startsWith("DOM: ")
+  ) {
+    const text = indicator.slice(indicator.indexOf(" ") + 1);
+
+    return STRONG_INDICATORS.includes(text) ? "danger" : "warning";
+  }
+
+  return "neutral";
+}
+
+function displayIndicators(indicators, result) {
   indicatorList.innerHTML = "";
 
   if (!indicators || indicators.length === 0) {
@@ -121,6 +173,7 @@ function displayIndicators(indicators) {
   for (const indicator of indicators) {
     const item = document.createElement("li");
     item.textContent = indicator;
+    item.classList.add(getIndicatorLevel(indicator, result));
     indicatorList.appendChild(item);
   }
 }
@@ -188,7 +241,7 @@ function displayResult(result) {
     components.reputation_score
   );
 
-  displayIndicators(result.indicators);
+  displayIndicators(result.indicators, result);
 
   detailsPanel.classList.add("hidden");
   detailsToggle.textContent = "See details";

@@ -183,12 +183,27 @@ h2 {
 
 .indicator-list li {
   padding: 9px 10px;
-  border-left: 3px solid #f59e0b;
+  border-left: 3px solid #9ca3af;
   border-radius: 5px;
   background: white;
   color: #475467;
   font-size: 12px;
   line-height: 1.35;
+}
+
+.indicator-list li.good {
+  border-left-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.indicator-list li.warning {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.indicator-list li.danger {
+  border-left-color: #dc2626;
+  background: #fef2f2;
 }
 
 .error-section {
