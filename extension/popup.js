@@ -96,7 +96,7 @@ function getColorForRiskClass(riskClass) {
   return "#16a34a";
 }
 
-const SCORE_RING_RADIUS = 34;
+const SCORE_RING_RADIUS = 52;
 
 // Short advice under the classification, what the user should do.
 const ADVICE = {
@@ -146,9 +146,10 @@ function displayScore(
 
   classification.style.color = color;
 
+  // "of 100" under the number, hidden when there is no score.
   scoreLabel.textContent = hasScore
-    ? `Risk score ${score}/100`
-    : "Risk score not available";
+    ? "of 100"
+    : "";
 
   scoreAdvice.textContent =
     getAdvice(riskClass, resultClassification);

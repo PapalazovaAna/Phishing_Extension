@@ -4,7 +4,6 @@
 
 body {
   width: 380px;
-  min-height: 420px;
   margin: 0;
   background: #f4f7fb;
   color: #172033;
@@ -102,8 +101,8 @@ h1 {
 
 .score-card {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
   padding: 18px;
   border-radius: 12px;
   background: white;
@@ -117,7 +116,7 @@ h1 {
 .score-ring-track,
 .score-ring-value {
   fill: none;
-  stroke-width: 9;
+  stroke-width: 12;
 }
 
 .score-ring-track {
@@ -126,29 +125,29 @@ h1 {
 
 .score-ring-value {
   stroke: #16a34a;
-  stroke-dasharray: 0 214;
+  stroke-dasharray: 0 327;
   stroke-linecap: round;
   transition: stroke-dasharray 0.4s ease;
 }
 
 .score-ring-text {
   fill: #172033;
-  font-size: 22px;
+  font-size: 34px;
   font-weight: bold;
 }
 
-.score-text {
-  min-width: 0;
+.score-ring-label {
+  fill: #6d7788;
+  font-size: 12px;
 }
 
-.score-label {
-  margin-top: 4px;
-  color: #6d7788;
-  font-size: 13px;
+.score-card .classification {
+  margin-top: 8px;
 }
 
 .score-advice {
-  margin-top: 6px;
+  margin-top: 4px;
+  text-align: center;
   color: #475467;
   font-size: 12px;
   line-height: 1.35;

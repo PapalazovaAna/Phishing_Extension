@@ -27,42 +27,45 @@
       <section class="score-card">
         <svg
           class="score-ring"
-          width="90"
-          height="90"
-          viewBox="0 0 90 90"
+          width="140"
+          height="140"
+          viewBox="0 0 140 140"
           aria-hidden="true"
         >
-          <circle class="score-ring-track" cx="45" cy="45" r="34" />
+          <circle class="score-ring-track" cx="70" cy="70" r="52" />
           <circle
             id="score-ring-value"
             class="score-ring-value"
-            cx="45"
-            cy="45"
-            r="34"
-            transform="rotate(-90 45 45)"
+            cx="70"
+            cy="70"
+            r="52"
+            transform="rotate(-90 70 70)"
           />
           <text
             id="score-value"
             class="score-ring-text"
-            x="45"
-            y="52"
+            x="70"
+            y="78"
             text-anchor="middle"
           >
             0
           </text>
+          <text
+            id="score-label"
+            class="score-ring-label"
+            x="70"
+            y="98"
+            text-anchor="middle"
+          >
+            of 100
+          </text>
         </svg>
 
-        <div class="score-text">
-          <div id="classification" class="classification">
-            Likely safe
-          </div>
-
-          <div id="score-label" class="score-label">
-            Risk score 0/100
-          </div>
-
-          <div id="score-advice" class="score-advice"></div>
+        <div id="classification" class="classification">
+          Likely safe
         </div>
+
+        <div id="score-advice" class="score-advice"></div>
       </section>
 
       <button
