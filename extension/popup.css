@@ -101,39 +101,57 @@ h1 {
 }
 
 .score-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   padding: 18px;
   border-radius: 12px;
   background: white;
   box-shadow: 0 2px 8px rgba(23, 32, 51, 0.08);
-  text-align: center;
 }
 
-.score-value {
-  color: #2563eb;
-  font-size: 42px;
+.score-ring {
+  flex: none;
+}
+
+.score-ring-track,
+.score-ring-value {
+  fill: none;
+  stroke-width: 9;
+}
+
+.score-ring-track {
+  stroke: #e5e7eb;
+}
+
+.score-ring-value {
+  stroke: #16a34a;
+  stroke-dasharray: 0 214;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.4s ease;
+}
+
+.score-ring-text {
+  fill: #172033;
+  font-size: 22px;
   font-weight: bold;
 }
 
+.score-text {
+  min-width: 0;
+}
+
 .score-label {
-  margin-top: -4px;
+  margin-top: 4px;
   color: #6d7788;
   font-size: 13px;
 }
 
-.progress-track {
-  height: 10px;
-  margin: 16px 0 12px;
-  overflow: hidden;
-  border-radius: 10px;
-  background: #e5e7eb;
-}
-
-.progress-bar {
-  width: 0%;
-  height: 100%;
-  border-radius: 10px;
-  background: #22c55e;
-  transition: width 0.4s ease;
+.score-advice {
+  margin-top: 6px;
+  color: #475467;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .classification {

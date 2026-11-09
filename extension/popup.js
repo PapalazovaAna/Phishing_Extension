@@ -16,8 +16,14 @@ const resultSection =
 const scoreValue =
   document.getElementById("score-value");
 
-const scoreProgress =
-  document.getElementById("score-progress");
+const scoreRing =
+  document.getElementById("score-ring-value");
+
+const scoreLabel =
+  document.getElementById("score-label");
+
+const scoreAdvice =
+  document.getElementById("score-advice");
 
 const classification =
   document.getElementById("classification");
@@ -90,20 +96,62 @@ function getColorForRiskClass(riskClass) {
   return "#16a34a";
 }
 
-function displayScore(score, riskClass, hasScore) {
-  scoreValue.textContent = hasScore
-    ? `${score}/100`
-    : "N/A";
+const SCORE_RING_RADIUS = 34;
 
-  scoreProgress.style.width = hasScore
-    ? `${score}%`
-    : "0%";
+// Short advice under the classification, what the user should do.
+const ADVICE = {
+  safe: "No signs of phishing were found.",
+  suspicious: "Be careful before entering any data.",
+  dangerous: "Do not enter any personal data on this page."
+};
 
+function getAdvice(riskClass, resultClassification) {
+  if (resultClassification === "Not available") {
+    return "This type of page cannot be analyzed.";
+  }
+
+  if (resultClassification === "Unavailable") {
+    return "The analysis server could not be reached.";
+  }
+
+  return ADVICE[riskClass] || "";
+}
+
+function displayScore(
+  score,
+  riskClass,
+  hasScore,
+  resultClassification
+) {
   const color =
     getColorForRiskClass(riskClass);
 
-  scoreValue.style.color = color;
-  scoreProgress.style.background = color;
+  const circumference =
+    2 * Math.PI * SCORE_RING_RADIUS;
+
+  const filled = hasScore
+    ? circumference * score / 100
+    : 0;
+
+  // The ring fills up with the score.
+  scoreRing.style.strokeDasharray =
+    `${filled} ${circumference}`;
+  scoreRing.style.stroke = color;
+  scoreRing.style.opacity = filled > 0 ? "1" : "0";
+
+  scoreValue.textContent = hasScore
+    ? String(score)
+    : "-";
+  scoreValue.style.fill = color;
+
+  classification.style.color = color;
+
+  scoreLabel.textContent = hasScore
+    ? `Risk score ${score}/100`
+    : "Risk score not available";
+
+  scoreAdvice.textContent =
+    getAdvice(riskClass, resultClassification);
 }
 
 // Indicators that are strong signs of phishing on their own.
@@ -215,7 +263,8 @@ function displayResult(result) {
   displayScore(
     score,
     riskClass,
-    hasScore
+    hasScore,
+    resultClassification
   );
 
   const components =

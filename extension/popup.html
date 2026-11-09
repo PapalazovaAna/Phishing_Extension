@@ -25,20 +25,43 @@
 
     <section id="result-section" class="result-section hidden">
       <section class="score-card">
-        <div id="score-value" class="score-value">
-          0/100
-        </div>
+        <svg
+          class="score-ring"
+          width="90"
+          height="90"
+          viewBox="0 0 90 90"
+          aria-hidden="true"
+        >
+          <circle class="score-ring-track" cx="45" cy="45" r="34" />
+          <circle
+            id="score-ring-value"
+            class="score-ring-value"
+            cx="45"
+            cy="45"
+            r="34"
+            transform="rotate(-90 45 45)"
+          />
+          <text
+            id="score-value"
+            class="score-ring-text"
+            x="45"
+            y="52"
+            text-anchor="middle"
+          >
+            0
+          </text>
+        </svg>
 
-        <div class="score-label">
-          Risk score
-        </div>
+        <div class="score-text">
+          <div id="classification" class="classification">
+            Likely safe
+          </div>
 
-        <div class="progress-track">
-          <div id="score-progress" class="progress-bar"></div>
-        </div>
+          <div id="score-label" class="score-label">
+            Risk score 0/100
+          </div>
 
-        <div id="classification" class="classification">
-          Likely safe
+          <div id="score-advice" class="score-advice"></div>
         </div>
       </section>
 
