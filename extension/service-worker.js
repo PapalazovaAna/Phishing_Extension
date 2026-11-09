@@ -1,7 +1,10 @@
 const BACKEND_URL =
   "http://127.0.0.1:8000/analyze";
 
-const activePrechecks = new Set();
+// The latest analysis of each tab: tabId -> { url, domScore, result }.
+// "result" is a promise, so the popup can wait for an analysis that
+// is still running instead of starting a second one.
+const analyses = new Map();
 
 
 function isAnalyzableUrl(url) {
@@ -169,85 +172,163 @@ async function showWarningOverlay(
 }
 
 
-async function precheckTab(tabId, url) {
-  if (isDevelopmentUrl(url)) {
-    return;
-  }
+async function isBypassed(tabId, url) {
+  const bypassKey = `bypass:${tabId}:${url}`;
+  const bypassData = await chrome.storage.session.get(bypassKey);
 
-  const key = `${tabId}:${url}`;
+  return Boolean(bypassData[bypassKey]);
+}
 
-  if (activePrechecks.has(key)) {
-    return;
-  }
 
-  activePrechecks.add(key);
+function emptyDomData() {
+  return {
+    score: 0,
+    indicators: []
+  };
+}
 
-  try {
-    const result = await analyzeWithBackend(
-      url,
+
+// Runs the complete analysis of a page once: URL, ML model,
+// reputation and page content (DOM). The same result decides the
+// warning and is shown in the popup.
+function analyzePage(tabId, url, domData) {
+  const result = analyzeWithBackend(url, domData).then(
+    async function (analysis) {
+      if (
+        shouldBlockAutomatically(analysis) &&
+        !isDevelopmentUrl(url) &&
+        !(await isBypassed(tabId, url))
+      ) {
+        await showWarningOverlay(tabId, url, analysis);
+      }
+
+      return analysis;
+    }
+  );
+
+  const entry = {
+    url,
+    domScore: domData.score,
+    result
+  };
+
+  analyses.set(tabId, entry);
+
+  // A failed analysis is not kept, so the popup can try again.
+  result.catch(function (error) {
+    console.warn("Analysis failed:", error);
+
+    if (analyses.get(tabId) === entry) {
+      analyses.delete(tabId);
+    }
+  });
+
+  return result;
+}
+
+
+function requestDomData(tabId) {
+  return new Promise(function (resolve) {
+    chrome.tabs.sendMessage(
+      tabId,
       {
-        score: 0,
-        indicators: []
+        type: "ANALYZE_DOM"
+      },
+      function (domResult) {
+        // No content script (for example a PDF or a page that was
+        // open before the extension was loaded): analyze without DOM.
+        if (chrome.runtime.lastError || !domResult) {
+          resolve(emptyDomData());
+          return;
+        }
+
+        resolve(domResult);
       }
     );
+  });
+}
 
-    if (shouldBlockAutomatically(result)) {
-      await showWarningOverlay(
-        tabId,
-        url,
-        result
-      );
+
+function unavailableResult(url, domData) {
+  const urlData = analyzeUrl(url);
+
+  return {
+    score: null,
+    classification: "Unavailable",
+    indicators: [
+      ...urlData.indicators.map(
+        function (item) {
+          return "URL: " + item;
+        }
+      ),
+      "The backend could not be reached.",
+      ...domData.indicators.map(
+        function (item) {
+          return "DOM: " + item;
+        }
+      )
+    ],
+    components: {
+      url_score: urlData.score,
+      ml_score: null,
+      dom_score: domData.score,
+      reputation_score: null
     }
-  } catch (error) {
-    console.warn(
-      "Precheck failed:",
-      error
-    );
-  } finally {
-    activePrechecks.delete(key);
+  };
+}
+
+
+// The popup reuses the analysis made when the page was loaded. The
+// page content is checked again first: if it changed since (for
+// example a login form appeared later), the page is analyzed again.
+async function analysisForPopup(tabId, url) {
+  const domData = await requestDomData(tabId);
+  const entry = analyses.get(tabId);
+
+  if (
+    entry &&
+    entry.url === url &&
+    entry.domScore === domData.score
+  ) {
+    try {
+      return await entry.result;
+    } catch {
+      // The stored analysis failed, analyze again below.
+    }
+  }
+
+  try {
+    return await analyzePage(tabId, url, domData);
+  } catch {
+    return unavailableResult(url, domData);
   }
 }
 
 
-chrome.tabs.onUpdated.addListener(
-  async function (tabId, changeInfo, tab) {
-    if (changeInfo.status !== "complete") {
-      return;
-    }
-
-    const url = tab.url;
-
-    if (!isAnalyzableUrl(url)) {
-      return;
-    }
-
-    if (isDevelopmentUrl(url)) {
-      return;
-    }
-
-    const bypassKey =
-      `bypass:${tabId}:${url}`;
-
-    const bypassData =
-      await chrome.storage.session.get(
-        bypassKey
-      );
-
-    if (bypassData[bypassKey]) {
-      await chrome.storage.session.remove(
-        bypassKey
-      );
-
-      return;
-    }
-
-    await precheckTab(tabId, url);
-  }
-);
+chrome.tabs.onRemoved.addListener(function (tabId) {
+  analyses.delete(tabId);
+});
 
 
 chrome.runtime.onMessage.addListener(
   function (message, sender, sendResponse) {
+    if (message.type === "PAGE_READY") {
+      const tabId = sender.tab ? sender.tab.id : null;
+
+      if (
+        tabId !== null &&
+        isAnalyzableUrl(message.url) &&
+        !isDevelopmentUrl(message.url)
+      ) {
+        analyzePage(tabId, message.url, message.dom || emptyDomData())
+          .catch(function () {
+            // Already logged in analyzePage.
+          });
+      }
+
+      return;
+    }
+
     if (
       message.type ===
       "CONTINUE_ANYWAY_IN_PAGE"
@@ -257,13 +338,10 @@ chrome.runtime.onMessage.addListener(
         : null;
 
       if (tabId !== null) {
-        const url = message.url;
-
-        const bypassKey =
-          `bypass:${tabId}:${url}`;
-
+        // Remembered for this tab and address until the browser is
+        // closed, so the warning is not shown again on reload.
         chrome.storage.session.set({
-          [bypassKey]: true
+          [`bypass:${tabId}:${message.url}`]: true
         });
       }
 
@@ -308,61 +386,7 @@ chrome.runtime.onMessage.addListener(
       return;
     }
 
-    chrome.tabs.sendMessage(
-      message.tabId,
-      {
-        type: "ANALYZE_DOM"
-      },
-      async function (domResult) {
-        const lastError =
-          chrome.runtime.lastError;
-
-        const domData =
-          lastError || !domResult
-            ? {
-                score: 0,
-                indicators: []
-              }
-            : domResult;
-
-        try {
-          const result =
-            await analyzeWithBackend(
-              message.url,
-              domData
-            );
-
-          sendResponse(result);
-        } catch {
-          const urlData =
-            analyzeUrl(message.url);
-
-          sendResponse({
-            score: null,
-            classification: "Unavailable",
-            indicators: [
-              ...urlData.indicators.map(
-                function (item) {
-                  return "URL: " + item;
-                }
-              ),
-              "The backend could not be reached.",
-              ...domData.indicators.map(
-                function (item) {
-                  return "DOM: " + item;
-                }
-              )
-            ],
-            components: {
-              url_score: urlData.score,
-              ml_score: null,
-              dom_score: domData.score,
-              reputation_score: null
-            }
-          });
-        }
-      }
-    );
+    analysisForPopup(message.tabId, message.url).then(sendResponse);
 
     return true;
   }

@@ -30,8 +30,8 @@ flowchart LR
         SC[scoring.py]
     end
 
+    CS -- PAGE_READY with DOM result --> SW
     P -- ANALYZE_PAGE --> SW
-    SW -- ANALYZE_DOM --> CS
     SW -- POST /analyze --> API
     API --> ML
     API --> REP
@@ -40,11 +40,15 @@ flowchart LR
     SW -- SHOW_PHISHING_WARNING --> CS
 ```
 
-1. When a page finishes loading, the service worker sends its URL to the
-   backend. If the backend returns `block: true`, the content script
-   shows a full-page warning with the option to go back or continue.
-2. When the user opens the popup, the DOM is analyzed as well and the
-   full result with all indicators is shown.
+1. When a page is ready, the content script analyzes its DOM and sends
+   the result with the URL to the service worker, which sends everything
+   to the backend in one request. If the backend returns `block: true`,
+   the content script shows a full-page warning with the option to go
+   back or continue.
+2. When the user opens the popup, it shows the result of that same
+   analysis. The DOM is checked again first; only if it changed since the
+   page loaded (for example a login form appeared later) is the page
+   analyzed again.
 
 ### Scoring
 
@@ -235,8 +239,9 @@ same predictions for both schemes.
 runs every test URL through the whole backend: URL heuristics (a Python
 port of the extension code), ML model, reputation lists, typosquatting
 and `scoring.py`. The DOM score is 0 because the datasets contain no page
-content; this is also the situation of the automatic check when a page
-is opened. Share of URLs classified as *Suspicious* or *Likely phishing*:
+content, so the numbers show what the system detects from the address
+alone; on a real page, suspicious content raises the score further.
+Share of URLs classified as *Suspicious* or *Likely phishing*:
 
 | Dataset | Model | Phishing detected | Legitimate flagged |
 |---|---|---|---|
@@ -252,10 +257,10 @@ is opened. Share of URLs classified as *Suspicious* or *Likely phishing*:
   FINKI courses login 96%). For domains in the Tranco list this has no
   effect, because their score is limited to 20, but a login page of a
   small legitimate site that is in no list is classified as *Suspicious*.
-- Without DOM data the score of an unknown domain can hardly reach 70, so
-  most phishing pages are *Suspicious* rather than *Likely phishing*. The
-  automatic warning is shown only for pages that match the blocking rules
-  in `scoring.py`.
+- Without suspicious page content the score of an unknown domain can
+  hardly reach 70, so a phishing page whose content looks harmless is
+  usually *Suspicious* rather than *Likely phishing*. The warning is
+  shown only for pages that match the blocking rules in `scoring.py`.
 - The vonpower dataset is from 2018, newer phishing techniques are only
   represented by the ealvaradob data.
 - The URL and DOM heuristics are computed in the extension and sent to

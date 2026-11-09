@@ -358,3 +358,19 @@ chrome.runtime.onMessage.addListener(
     }
   }
 );
+
+// The analysis of a page starts here, as soon as the page is ready.
+// The content of the page is analyzed right away, so the first and
+// only analysis already includes it.
+if (window.top === window) {
+  chrome.runtime.sendMessage({
+    type: "PAGE_READY",
+    url: window.location.href,
+    dom: analyzeDom()
+  }).catch(function (error) {
+    console.warn(
+      "Could not start the page analysis:",
+      error
+    );
+  });
+}
