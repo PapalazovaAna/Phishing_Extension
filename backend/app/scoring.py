@@ -7,50 +7,31 @@ Every component score is between 0 and 100:
 - dom:        heuristic page content analysis (computed by the extension)
 - reputation: OpenPhish / Tranco / typosquatting result
 
-The weights depend on the reputation status, because a match in a
-phishing feed or a popular domain is much stronger evidence than
-the other signals.
+The URL, ML and DOM scores are uncertain signals, so they are
+combined with weights into one weighted score. The reputation result
+is not part of that sum: a match in a phishing feed, a look-alike of
+a popular domain or a popular domain is treated as a fact, so it sets
+a minimum or a maximum for the final score instead.
 """
 
 PHISHING_THRESHOLD = 70
 SUSPICIOUS_THRESHOLD = 40
 
-# Weights per reputation status, each row sums to 1.
-# For popular domains the reputation score is 0, so its weight
-# pulls the final score down.
+# Weights of the uncertain signals, the same for every page.
 WEIGHTS = {
-    "malicious": {
-        "url": 0.25,
-        "ml": 0.35,
-        "dom": 0.15,
-        "reputation": 0.25,
-    },
-    "suspicious": {
-        "url": 0.20,
-        "ml": 0.25,
-        "dom": 0.10,
-        "reputation": 0.45,
-    },
-    "popular": {
-        "url": 0.25,
-        "ml": 0.10,
-        "dom": 0.15,
-        "reputation": 0.50,
-    },
-    "unknown": {
-        "url": 0.35,
-        "ml": 0.45,
-        "dom": 0.20,
-        "reputation": 0.0,
-    },
+    "url": 0.35,
+    "ml": 0.45,
+    "dom": 0.20,
 }
 
-# Minimum final score for reputation matches.
+# Reputation rules, applied to the weighted score:
+# a URL in the phishing feed scores at least MALICIOUS_MIN_SCORE,
+# a look-alike of a popular domain at least SUSPICIOUS_MIN_SCORE.
 MALICIOUS_MIN_SCORE = 85
 SUSPICIOUS_MIN_SCORE = 50
 
-# Popular domains are capped at this score unless the URL or
-# page content analysis is itself suspicious.
+# A popular domain scores at most POPULAR_MAX_SCORE, unless the URL
+# or page content analysis is itself suspicious.
 POPULAR_MAX_SCORE = 20
 
 # Thresholds above which a component counts as a strong signal.
@@ -92,24 +73,25 @@ def count_strong_signals(
     return sum(strong_signals)
 
 
+def weighted_score(
+    url_score: int,
+    ml_score: int,
+    dom_score: int,
+) -> float:
+    return (
+        url_score * WEIGHTS["url"]
+        + ml_score * WEIGHTS["ml"]
+        + dom_score * WEIGHTS["dom"]
+    )
+
+
 def combine_scores(
     url_score: int,
     ml_score: int,
     dom_score: int,
     reputation_status: str,
-    reputation_score: int,
 ) -> int:
-    weights = WEIGHTS.get(
-        reputation_status,
-        WEIGHTS["unknown"],
-    )
-
-    final_score = (
-        url_score * weights["url"]
-        + ml_score * weights["ml"]
-        + dom_score * weights["dom"]
-        + reputation_score * weights["reputation"]
-    )
+    final_score = weighted_score(url_score, ml_score, dom_score)
 
     if reputation_status == "malicious":
         final_score = max(final_score, MALICIOUS_MIN_SCORE)

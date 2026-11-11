@@ -15,8 +15,7 @@ client = TestClient(app)
 
 
 def test_weights_sum_to_one():
-    for status, weights in WEIGHTS.items():
-        assert sum(weights.values()) == pytest.approx(1.0), status
+    assert sum(WEIGHTS.values()) == pytest.approx(1.0)
 
 
 @pytest.mark.parametrize(
@@ -35,29 +34,65 @@ def test_classify_score(score, classification):
 
 
 def test_malicious_reputation_has_minimum_score():
-    assert combine_scores(0, 0, 0, "malicious", 100) == 85
+    assert combine_scores(0, 0, 0, "malicious") == 85
+
+
+@pytest.mark.parametrize(
+    "url_score, ml_score, dom_score, expected",
+    [
+        # weighted 20 + 40 + 10 = 70, raised to the minimum
+        (400 / 7, 400 / 9, 50, 85),
+        # weighted 15 + 30 + 5 = 50, raised to the minimum
+        (300 / 7, 200 / 3, 25, 85),
+        # weighted 30 + 45 + 17 = 92, already above the minimum
+        (600 / 7, 100, 85, 92),
+    ],
+)
+def test_malicious_minimum_only_raises_lower_scores(
+    url_score,
+    ml_score,
+    dom_score,
+    expected,
+):
+    assert combine_scores(
+        url_score,
+        ml_score,
+        dom_score,
+        "malicious",
+    ) == expected
 
 
 def test_suspicious_reputation_has_minimum_score():
-    assert combine_scores(0, 0, 0, "suspicious", 60) == 50
+    assert combine_scores(0, 0, 0, "suspicious") == 50
 
 
 def test_popular_domain_is_capped_despite_ml_score():
-    assert combine_scores(10, 100, 0, "popular", 0) <= 20
+    assert combine_scores(10, 100, 0, "popular") == 20
 
 
 def test_popular_domain_is_not_capped_with_suspicious_page():
-    assert combine_scores(80, 100, 80, "popular", 0) > 20
+    assert combine_scores(80, 100, 80, "popular") > 20
 
 
 def test_unknown_domain_uses_url_ml_and_dom():
-    assert combine_scores(20, 50, 10, "unknown", 0) == round(
+    assert combine_scores(20, 50, 10, "unknown") == round(
         20 * 0.35 + 50 * 0.45 + 10 * 0.20
     )
 
 
 def test_three_strong_signals_are_likely_phishing():
-    assert combine_scores(20, 70, 10, "unknown", 0) == 70
+    assert combine_scores(20, 70, 10, "unknown") == 70
+
+
+def test_same_weights_for_every_reputation_status():
+    # Without a rule that applies, the reputation status does not
+    # change the weighted score.
+    assert combine_scores(10, 20, 0, "unknown") == combine_scores(
+        10,
+        20,
+        0,
+        "popular",
+    )
 
 
 @pytest.mark.parametrize(

@@ -136,7 +136,6 @@ def analyze(request: AnalyzeRequest) -> dict[str, Any]:
         ml_score=ml_score,
         dom_score=dom_score,
         reputation_status=reputation_status,
-        reputation_score=reputation_score,
     )
 
     indicators = combine_indicators(

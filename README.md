@@ -53,15 +53,22 @@ flowchart LR
 ### Scoring
 
 All scoring rules are in [`backend/app/scoring.py`](backend/app/scoring.py).
-The weights depend on the reputation status, because a phishing feed
-match or a popular domain is stronger evidence than the other signals:
+The URL, ML and DOM scores are uncertain signals, so they are combined
+with the same weights for every page:
 
-| Reputation status | URL | ML | DOM | Reputation | Additional rule |
-|---|---|---|---|---|---|
-| malicious (in OpenPhish) | 0.25 | 0.35 | 0.15 | 0.25 | at least 85 |
-| suspicious (typosquatting) | 0.20 | 0.25 | 0.10 | 0.45 | at least 50 |
-| popular (Tranco top 1M) | 0.25 | 0.10 | 0.15 | 0.50 | at most 20 unless URL or DOM score is 40 or more |
-| unknown | 0.35 | 0.45 | 0.20 | 0 | |
+```
+weighted score = 0.35 · URL + 0.45 · ML + 0.20 · DOM
+```
+
+The reputation result is not part of that sum. A match in a list is
+treated as a fact, so it sets a minimum or a maximum for the score:
+
+| Reputation status | Rule |
+|---|---|
+| malicious (URL in OpenPhish) | score = max(weighted score, 85), always blocked |
+| suspicious (typosquatting) | score = max(weighted score, 50) |
+| popular (Tranco top 1M) | score = min(weighted score, 20), unless the URL or DOM score is 40 or more |
+| unknown | score = weighted score |
 
 When three or more signals are strong at the same time, the score is at
 least 70. Scores of 70 and above are classified as *Likely phishing*,
@@ -245,8 +252,8 @@ Share of URLs classified as *Suspicious* or *Likely phishing*:
 
 | Dataset | Model | Phishing detected | Legitimate flagged |
 |---|---|---|---|
-| vonpower | previous | 88.8% | 0.09% |
-| vonpower | current | 86.8% | 0.08% |
+| vonpower | previous | 89.0% | 0.09% |
+| vonpower | current | 86.9% | 0.08% |
 | ealvaradob | previous | 51.5% | 1.32% |
 | ealvaradob | current | 85.2% | 0.68% |
 

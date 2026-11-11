@@ -34,15 +34,15 @@
       "all": {
         "count": 75775,
         "blocked": 0.4644,
-        "Likely safe": 0.112,
-        "Suspicious": 0.8534,
+        "Likely safe": 0.1105,
+        "Suspicious": 0.8549,
         "Likely phishing": 0.0346
       },
       "popular": {
         "count": 6571,
         "blocked": 0.3721,
-        "Likely safe": 1.0,
-        "Suspicious": 0.0,
+        "Likely safe": 0.9834,
+        "Suspicious": 0.0166,
         "Likely phishing": 0.0
       },
       "suspicious": {
@@ -158,15 +158,15 @@
       "all": {
         "count": 75775,
         "blocked": 0.4619,
-        "Likely safe": 0.1321,
-        "Suspicious": 0.8333,
+        "Likely safe": 0.1306,
+        "Suspicious": 0.8347,
         "Likely phishing": 0.0346
       },
       "popular": {
         "count": 6571,
         "blocked": 0.3709,
-        "Likely safe": 1.0,
-        "Suspicious": 0.0,
+        "Likely safe": 0.9833,
+        "Suspicious": 0.0167,
         "Likely phishing": 0.0
       },
       "suspicious": {

@@ -102,7 +102,6 @@ def evaluate_file(path):
                 ml_score=ml_score,
                 dom_score=0,
                 reputation_status=reputation["status"],
-                reputation_score=reputation["score"] or 0,
             )
 
             blocked = should_block(
